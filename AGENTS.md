@@ -98,3 +98,65 @@ recorded for Task 8).
 
 *Task 11 status: complete. See `.superpowers/sdd/task-11-report.md` for the full
 step-by-step record (dry-run output, cleanup confirmation, commit SHA).*
+
+---
+
+### Task 13: final-review MUST-FIXES — split.sh pane fix + real CLI capture wiring
+
+A whole-branch review of all 12 tasks (17/17 tests passing at the time) returned MERGE
+AFTER MUST-FIXES. This task closes those out in one commit set:
+
+- **`lib/split.sh` panes/ratio were inverted.** tmux 3.4's `split-window -h` always puts
+  the *new* pane on the right of the pane it splits from. The old code ran the viz
+  (`right_cmd`) in the initial session pane (→ visually left) and split the directive
+  (`left_cmd`) in with plain `-h` (→ visually right, at `100-RATIO`% wide) — the inverse of
+  the documented contract. Fixed by keeping `right_cmd` as the initial pane and splitting
+  `left_cmd` in with `-h -b -l "${RATIO}%"` (`-b` = insert the new pane *before*/left of the
+  target). Verified manually with `tmux list-panes`/`capture-pane` mid-recording: the left
+  pane (`left=0`, width=RATIO%) now genuinely runs `left_cmd`, the right pane runs
+  `right_cmd`.
+- **Real capture wired into `bin/src/record.rs`** (the core value of this whole tool — up
+  to now `record` only ever wrote a `[dry-run]` placeholder, even without `--dry-run`).
+  `Step::Switch` now starts a scene's server via `lib/serve.sh`, capturing its PID and a
+  logfile (`demo/assets/.<server>.log`), then gates on readiness: `ready::poll_http` for
+  `health_url`, or a new `wait_for_log` (log-file-backed twin of `ready::poll_http`'s loop
+  shape) for a bare `ready.log` pattern; `ready.timeout` (e.g. `"360s"`) parses to a
+  `Duration`, defaulting to 300s. Stopping the *previous* server and any board reset is
+  explicitly left as `// TODO(v1.1)` — switching never runs `tt-smi -r`. `Step::Record` now
+  computes `cols`/`rows`/`ratio`/`dur` from the manifest (with the same defaults
+  `compile.rs` uses) and shells directly to `lib/split.sh` (two-pane scenes) or
+  `lib/tmux_capture.sh` (single-pane, wrapped in a `cmd & sleep DUR; kill; wait` so a
+  non-exiting viz still gets stopped cleanly) against the scene's **raw** `left`/`right`
+  commands — never the compiled tape/driver text, which stays a v1.1 execution path (see
+  `compile.rs`'s new TODO on its shell-quoting closure). `--dry-run` behavior is untouched.
+  **Bug found while testing this wiring**: `compile::compile_scene` unconditionally
+  requires a `right` pane, but raw-hatch scenes (`raw_tape`/`raw_script`) never have one by
+  construction — so raw scenes crashed `tt-demo record` outright, in dry-run included, on
+  every branch before this task. Fixed by checking `Scene::is_raw()` *before* ever calling
+  `compile_scene`, so raw scenes print `[raw]` + a "not yet CLI-captured (v1.1)" note and
+  skip cleanly instead of erroring, matching the manifest's own contract that raw scenes
+  are a valid (if less-automated) shape.
+- **`tests/e2e_golden.sh`** gained two new hardware-free scenes (`cli-single`, `cli-split`)
+  and a section that runs `tt-demo record cli-single` / `tt-demo record cli-split`
+  (non-dry-run, through the real CLI, not the lib/ scripts directly like the existing
+  marquee check) and asserts the resulting `.cast` files contain their markers
+  (`CLI_SINGLE`; `CLI_LEFT` + `CLI_RIGHT`). Ran 3 consecutive times, 3/3 pass, no leftover
+  tmux sessions or processes after any run.
+- **Hygiene**: `compile.rs`'s dead `width` expression
+  (`split_ratio.map(|_| ()).and(None).unwrap_or(...)`, always evaluated to the same value
+  as a bare `unwrap_or`) simplified to `m.defaults.cols.unwrap_or(200)`; a TODO added at the
+  asciinema-driver's `Debug`-repr shell-quoting closure. `cargo build` warnings driven to
+  zero: `Compiled.text`, `Defaults.outputs`/`padding`, and `ServerDef.stop` are each
+  `#[allow(dead_code)]` with a one-line reason (all reserved for v1.1 paths this task
+  intentionally doesn't wire up yet).
+- **Docs**: README gained a "v1 limitations / v1.1" section listing exactly what's
+  deferred (raw-hatch CLI capture, compiled-tape/driver execution + its shell-quoting gap,
+  theme-matched GIF palette, unexercised MP4 path, server-stop/board-reset on switch).
+
+Full step-by-step record (split.sh before/after verification, record.rs manual smoke
+tests including the raw-scene bug, golden 3-run evidence, warning count):
+`.superpowers/sdd/task-13-report.md`.
+
+---
+
+*Task 13 status: complete.*

@@ -2,6 +2,9 @@
 # split.sh <out.cast> <cols> <rows> <ratio> <left_cmd> <right_cmd> <duration_s>
 # Two-pane causation capture: left=directive, right=viz, recorded as one cast.
 #
+# Contract: left_cmd renders as the LEFT pane sized at RATIO%, right_cmd renders
+# as the RIGHT pane sized at (100-RATIO)%.
+#
 # Structural note (deviation from the task-8 brief): the brief's skeleton
 # interpolated left_cmd/right_cmd directly into a shell command string, e.g.
 #   tmux split-window ... "bash -c '$LEFT; sleep $DUR'"
@@ -17,8 +20,20 @@
 # uses `-p <percentage>`, a flag tmux 3.4 (confirmed environment) does not
 # accept for split-window — it errors "size missing" (verified manually;
 # `-p` was removed/replaced upstream in favor of `-l size%`). Replaced with
-# `-l "$((100 - RATIO))%"`, which is the tmux-3.4-correct spelling of the
-# same "percentage of the window" split size.
+# `-l "${RATIO}%"` on the `-b` (before/left) split described below, which is
+# the tmux-3.4-correct spelling of "percentage of the window" split size.
+#
+# Third deviation (final-review MUST-FIX): tmux 3.4's `split-window -h`
+# always puts the NEW pane on the RIGHT of the pane it splits from — it does
+# not put the new pane on the left just because you're calling it "left" in
+# your own head. The original code ran right_cmd (viz) in the initial
+# new-session pane, then split left_cmd (directive) in with a plain `-h`, so
+# left_cmd landed on the RIGHT at (100-RATIO)% wide — the inverse of the
+# documented contract (left=LEFT@RATIO%, right=RIGHT@(100-RATIO)%). Fixed by
+# keeping right_cmd (viz) as the initial pane and splitting left_cmd
+# (directive) in with `-b` (before = insert the new pane to the left of the
+# target) sized `-l "${RATIO}%"`, so left_cmd is genuinely the LEFT pane at
+# RATIO% width and right_cmd is genuinely the RIGHT pane at the remainder.
 set -euo pipefail
 OUT="$1"; COLS="$2"; ROWS="$3"; RATIO="$4"; LEFT="$5"; RIGHT="$6"; DUR="$7"
 SESSION="ttsplit_$$"
@@ -51,7 +66,7 @@ chmod +x "$RUNDIR/left.sh"
 chmod +x "$RUNDIR/right.sh"
 
 tmux new-session -d -x "$COLS" -y "$ROWS" -s "$SESSION" bash "$RUNDIR/right.sh"        # right pane = viz
-tmux split-window -h -t "$SESSION" -l "$((100 - RATIO))%" bash "$RUNDIR/left.sh"       # left = directive
+tmux split-window -h -b -t "$SESSION" -l "${RATIO}%" bash "$RUNDIR/left.sh"            # left = directive (-b inserts before/left of target)
 sleep 1
 asciinema rec "$OUT" --overwrite --cols "$COLS" --rows "$ROWS" \
   --command "tmux attach -t $SESSION" &

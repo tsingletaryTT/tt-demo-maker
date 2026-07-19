@@ -78,3 +78,27 @@ mkdir -p demo && cp examples/demos.yaml demo/demos.yaml
 Demo scene commands should prefer `--host` or `--backend hybrid` (interpolated via the
 `{backend}` token in `defaults.backend`) over touching real hardware directly — this keeps
 demos safe to record on shared boxes and runnable in CI via `--dry-run`.
+
+## v1 limitations / v1.1
+
+`tt-demo record` (non-dry-run) drives declarative (`left`/`right`) scenes straight through
+the tested `lib/*.sh` capture primitives, using each scene's raw `run:` commands. The
+following are deliberately deferred to v1.1:
+
+- **Raw-hatch CLI capture.** `raw_tape`/`raw_script` scenes are recognized and skipped
+  cleanly (no error) rather than executed — run VHS/asciinema on them by hand for now.
+- **Compiled-tape/driver execution.** `compile_scene`'s rendered VHS tape / asciinema
+  driver text (`Compiled.text`) is produced and validated (compile-time only) but never
+  executed by `record`; real capture goes through `lib/tmux_capture.sh`/`lib/split.sh`
+  directly against the scene's raw commands instead. The compiled-driver's own shell
+  quoting (`Debug`-repr, in `compile.rs`) also isn't POSIX-shell-safe yet — fine for the
+  unexecuted text today, but must be fixed before that path is wired up.
+- **Theme-matched GIF palette.** `tt-demo render --gif` shells out to `agg` with its
+  default palette; it doesn't yet apply the manifest's `theme:` (`tt-brand`/`dracula`)
+  colors the way the VHS path does.
+- **MP4 rendering is unexercised.** `lib/render.sh mp4` (Xvfb + xterm + ffmpeg) exists but
+  has no automated coverage here — it needs a display server most CI runners don't have.
+- **Server stop / board reset on switch.** `Step::Switch` starts the next scene's server
+  and waits for its readiness gate, but never stops whatever was running before it or runs
+  a `tt-smi -r` board reset — switching between two exclusive hardware-backed servers back
+  to back is not yet safe to automate.

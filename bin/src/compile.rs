@@ -3,14 +3,25 @@ use crate::manifest::{Engine, Manifest, Scene};
 use anyhow::Context;
 use std::path::Path;
 
-pub struct Compiled { pub engine: Engine, pub kind: &'static str, pub text: String }
+pub struct Compiled {
+    pub engine: Engine,
+    pub kind: &'static str,
+    // Rendered tape/driver text, produced (and unit-tested) here but not yet executed —
+    // record.rs's real (non-dry-run) capture path drives the scene's raw `left`/`right` run
+    // commands directly against the tested lib/ scripts instead. Reserved for v1.1: the
+    // compiled-VHS-tape / asciinema-driver execution path.
+    #[allow(dead_code)]
+    pub text: String,
+}
 
-fn interp(s: &str, backend: &str) -> String { s.replace("{backend}", backend) }
+/// Interpolate the `{backend}` token. `pub(crate)` so `record.rs` can reuse the exact same
+/// substitution when driving real (non-dry-run) capture — one definition, shared.
+pub(crate) fn interp(s: &str, backend: &str) -> String { s.replace("{backend}", backend) }
 
 pub fn compile_scene(scene: &Scene, m: &Manifest, templates_dir: &Path) -> anyhow::Result<Compiled> {
     let engine = scene.resolved_engine();
     let backend = m.defaults.backend.clone().unwrap_or_default();
-    let width = scene.split_ratio.map(|_| ()).and(None).unwrap_or(m.defaults.cols.unwrap_or(200));
+    let width = m.defaults.cols.unwrap_or(200);
     let height = m.defaults.rows.unwrap_or(50);
     let duration_s = scene.duration.as_deref().unwrap_or("8s").trim_end_matches('s').to_string();
     let right_run = interp(&scene.right.as_ref().context("scene needs right pane")?.run, &backend);
@@ -36,6 +47,8 @@ pub fn compile_scene(scene: &Scene, m: &Manifest, templates_dir: &Path) -> anyho
         Engine::Asciinema => {
             let tmpl = std::fs::read_to_string(templates_dir.join("asciinema-driver.sh.j2"))?;
             env.add_template("t", &tmpl)?;
+            // TODO(v1.1 capture-wiring): replace Debug-quote with real POSIX shell quoting
+            // before executing compiled drivers.
             let q = |s: &str| format!("{:?}", s); // shell-safe quoting via debug repr
             let text = env.get_template("t")?.render(minijinja::context! {
                 id => scene.id,

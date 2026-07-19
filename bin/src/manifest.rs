@@ -19,7 +19,14 @@ pub struct Defaults {
     pub cols: Option<u16>,
     pub rows: Option<u16>,
     pub backend: Option<String>,
+    // Parsed from the manifest but not yet consulted by record/compile — a scene's own
+    // `outputs:` field is what's actually read today (see compile.rs). Reserved for v1.1
+    // (a project-wide output-format default with no per-scene override).
+    #[allow(dead_code)]
     pub outputs: Option<Vec<String>>,
+    // Parsed but not yet threaded into the VHS template — reserved for v1.1 (VHS theme
+    // padding is currently fixed by the theme .tape file itself, not by this default).
+    #[allow(dead_code)]
     pub padding: Option<u16>,
     pub typing_speed: Option<String>,
     pub playback_speed: Option<f32>,
@@ -28,6 +35,10 @@ pub struct Defaults {
 #[derive(Debug, Deserialize)]
 pub struct ServerDef {
     pub start: String,
+    // Parsed but not yet invoked by record.rs — switching servers today only ever starts
+    // the next one (see the `TODO(v1.1)` in record.rs's `Step::Switch` handling). Reserved
+    // for v1.1's stop-prior-server + board-reset path.
+    #[allow(dead_code)]
     pub stop: Option<String>,
     pub ready: Option<Ready>,
 }

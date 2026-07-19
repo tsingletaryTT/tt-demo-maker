@@ -19,6 +19,20 @@ scenes:
     duration: 2s
     right: { run: "echo GOLDEN_OK; sleep 1" }
     caption: "It records."
+  - id: cli-single
+    title: "CLI single capture"
+    layout: single
+    duration: 2s
+    right: { run: "echo CLI_SINGLE; sleep 1" }
+    caption: "The real CLI records a single pane."
+  - id: cli-split
+    title: "CLI split capture"
+    layout: split
+    duration: 3s
+    split_ratio: 40
+    left:  { run: "echo CLI_LEFT" }
+    right: { run: "echo CLI_RIGHT; sleep 6" }
+    caption: "The real CLI records a directive/viz split."
 YAML
 mkdir -p demo && cp have.yaml demo/demos.yaml
 
@@ -49,6 +63,20 @@ grep -q GOLDEN_OK demo/assets/hello.cast
 bash "$ROOT/lib/split.sh" demo/assets/split.cast 120 30 40 'echo LEFT_DIRECTIVE; sleep 1' 'echo RIGHT_VIZ; sleep 8' 3
 grep -q RIGHT_VIZ demo/assets/split.cast
 grep -q LEFT_DIRECTIVE demo/assets/split.cast
+
+# Real CLI capture (non-dry-run) via `tt-demo record` itself — exercises the Task 13 wiring
+# in record.rs end-to-end (not just the lib/ primitives directly, as above): single-pane
+# scenes drive lib/tmux_capture.sh, split scenes drive lib/split.sh, both fed the scene's
+# raw `left`/`right` run commands as declared in the manifest. Hardware-free, fast
+# (2s/3s scene durations), no server/readiness gating involved.
+"$TT_DEMO" record cli-single
+[[ -s demo/assets/cli-single.cast ]]
+grep -q CLI_SINGLE demo/assets/cli-single.cast
+
+"$TT_DEMO" record cli-split
+[[ -s demo/assets/cli-split.cast ]]
+grep -q CLI_LEFT demo/assets/cli-split.cast
+grep -q CLI_RIGHT demo/assets/cli-split.cast
 
 # compress, then render through the REAL CLI surface (tt-demo render -> lib/render.sh);
 # render_target prefers the compressed .min.cast
