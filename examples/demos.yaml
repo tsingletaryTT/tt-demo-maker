@@ -1,0 +1,24 @@
+project: tt-toplike
+theme: tt-brand
+defaults: { cols: 200, rows: 50, backend: "--host", outputs: [cast, gif] }
+scenes:
+  - id: qa-short
+    title: "One short question"
+    layout: single
+    duration: 8s
+    right: { run: "tt-toplike {backend} --mode starfield" }
+    caption: "A short prompt spikes current, then settles — the starfield twinkles and calms."
+  - id: cold-load
+    title: "Cold model load (host proxy)"
+    layout: split
+    left:  { run: "yes > /dev/null & sleep 6; kill %1" }
+    right: { run: "tt-toplike {backend} --mode arcade" }
+    duration: 8s
+    split_ratio: 40
+    caption: "Load ramps the host; the arcade hero climbs as power rises."
+  - id: reset-lightshow
+    title: "Reset light-show"
+    layout: single
+    duration: 6s
+    right: { run: "tt-toplike {backend} --mode arcade" }
+    caption: "Power collapses toward zero — particles stop, the dungeon goes quiet, then revives."
