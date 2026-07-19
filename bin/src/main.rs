@@ -1,3 +1,4 @@
+mod compile;
 mod compress;
 mod doctor;
 mod manifest;

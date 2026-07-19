@@ -1,0 +1,16 @@
+Output {{ out_gif }}
+{% if want_mp4 %}Output {{ out_mp4 }}{% endif %}
+Source {{ theme_tape }}
+Set Shell "bash"
+Set Width {{ width }}
+Set Height {{ height }}
+Set TypingSpeed {{ typing_speed }}
+Set PlaybackSpeed {{ playback_speed }}
+
+Hide
+Type "clear"
+Enter
+Show
+Type "{{ right_run }}"
+Enter
+Sleep {{ duration_s }}s

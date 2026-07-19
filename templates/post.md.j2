@@ -1,0 +1,12 @@
+# {{ project }} — demo
+
+{% for s in scenes %}
+## {{ s.title }}
+
+{{ s.directive_clip }}
+
+{{ s.viz_clip }}
+
+{{ s.narration }}
+
+{% endfor %}
