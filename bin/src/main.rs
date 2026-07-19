@@ -6,6 +6,7 @@ mod orchestrate;
 mod post;
 mod ready;
 mod record;
+mod render;
 mod scaffold;
 
 use clap::{Parser, Subcommand};
@@ -36,6 +37,15 @@ enum Cmd {
         #[arg(long)]
         dry_run: bool,
     },
+    /// Render a recorded scene's cast into a GIF and/or MP4 artifact.
+    Render {
+        /// Scene id (must exist in demo/demos.yaml and already be recorded).
+        id: String,
+        #[arg(long)]
+        gif: bool,
+        #[arg(long)]
+        mp4: bool,
+    },
     /// Scaffold demo/ (demos.yaml, assets/, .gitignore) in the current directory.
     Init,
     /// List scenes from demo/demos.yaml with their resolved engine + recorded status.
@@ -57,6 +67,7 @@ fn main() -> anyhow::Result<()> {
             let ids = if ids.is_empty() || ids == ["all"] { None } else { Some(ids) };
             record::run(ids, dry_run)
         }
+        Cmd::Render { id, gif, mp4 } => render::run(&id, gif, mp4),
         Cmd::Init => scaffold::init(),
         Cmd::List => scaffold::list(),
         Cmd::Post { narrate } => {

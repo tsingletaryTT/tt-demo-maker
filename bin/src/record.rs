@@ -3,7 +3,7 @@ use crate::{compile, manifest::Manifest, orchestrate::{plan, Step}};
 use anyhow::Context;
 use std::path::PathBuf;
 
-fn home() -> PathBuf {
+pub fn home() -> PathBuf {
     std::env::var("TT_DEMO_HOME").map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".."))
 }

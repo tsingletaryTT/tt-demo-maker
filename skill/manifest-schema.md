@@ -92,8 +92,8 @@ off the hot path.*
 ## Engine selection (`engine:`)
 
 `auto` (the default) resolves to:
-- **`asciinema`** when the scene needs live real timing — `layout: split`, a pane with
-  non-empty `keys`, or `raw_script:`.
+- **`asciinema`** when the scene needs live real timing — `layout: split`, the `right` pane
+  having non-empty `keys`, or `raw_script:`.
 - **`vhs`** otherwise — a deterministic scripted single-terminal sequence, or `raw_tape:`.
 - An explicit `engine: vhs`/`engine: asciinema` always overrides the `auto` rule.
 
