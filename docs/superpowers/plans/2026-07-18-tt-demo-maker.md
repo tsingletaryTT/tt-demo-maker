@@ -507,16 +507,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn clamps_large_idle_gap() {
-        // events at t=0, t=10 (9.5s of dead air), t=11
-        let cast = "{\"version\":2,\"width\":80,\"height\":24}\n[0.0,\"o\",\"a\"]\n[10.0,\"o\",\"b\"]\n[11.0,\"o\",\"c\"]\n";
+    fn clamps_large_idle_gap_preserves_small_one() {
+        // events at t=0, t=10 (big dead air), t=10.3 (small gap UNDER the limit)
+        let cast = "{\"version\":2,\"width\":80,\"height\":24}\n[0.0,\"o\",\"a\"]\n[10.0,\"o\",\"b\"]\n[10.3,\"o\",\"c\"]\n";
         let out = trim(cast, 0.5).unwrap();
         let times: Vec<f64> = out.lines().skip(1)
             .map(|l| serde_json::from_str::<serde_json::Value>(l).unwrap()[0].as_f64().unwrap())
             .collect();
         assert_eq!(times[0], 0.0);
-        assert_eq!(times[1], 0.5);   // 10s gap clamped to 0.5
-        assert_eq!(times[2], 1.5);   // following 1s gap preserved
+        assert_eq!(times[1], 0.5);              // 10s gap clamped to max_idle (0.5)
+        assert!((times[2] - 0.8).abs() < 1e-9); // following 0.3s gap (< max_idle) preserved: 0.5 + 0.3
     }
 }
 ```
