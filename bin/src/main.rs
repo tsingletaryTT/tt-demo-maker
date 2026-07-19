@@ -1,6 +1,7 @@
 mod compress;
 mod doctor;
 mod manifest;
+mod ready;
 
 use clap::{Parser, Subcommand};
 
