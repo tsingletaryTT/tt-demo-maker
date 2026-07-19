@@ -2,7 +2,9 @@ mod compile;
 mod compress;
 mod doctor;
 mod manifest;
+mod orchestrate;
 mod ready;
+mod record;
 
 use clap::{Parser, Subcommand};
 
@@ -25,11 +27,22 @@ enum Cmd {
         #[arg(long)]
         out: Option<std::path::PathBuf>,
     },
+    /// Record one scene, several, or all (with --dry-run to plan only).
+    Record {
+        /// Scene ids; omit or `all` for every scene.
+        ids: Vec<String>,
+        #[arg(long)]
+        dry_run: bool,
+    },
 }
 
 fn main() -> anyhow::Result<()> {
     match Cli::parse().cmd {
         Cmd::Doctor => doctor::run(),
         Cmd::Compress { cast, max_idle, out } => compress::run(&cast, max_idle, out.as_deref()),
+        Cmd::Record { ids, dry_run } => {
+            let ids = if ids.is_empty() || ids == ["all"] { None } else { Some(ids) };
+            record::run(ids, dry_run)
+        }
     }
 }
