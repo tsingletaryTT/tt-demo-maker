@@ -1566,9 +1566,16 @@ mkdir -p demo && cp have.yaml demo/demos.yaml
 bash "$ROOT/lib/tmux_capture.sh" demo/assets/hello.cast 100 30 bash -c 'echo GOLDEN_OK; sleep 1'
 grep -q GOLDEN_OK demo/assets/hello.cast
 
-# compress + render
+# marquee two-pane causation capture via split.sh (left=directive, right=viz)
+# duration 3s; right "viz" sleeps longer and is quit by split.sh — both pane outputs land in the cast
+bash "$ROOT/lib/split.sh" demo/assets/split.cast 120 30 40 'echo LEFT_DIRECTIVE; sleep 1' 'echo RIGHT_VIZ; sleep 8' 3
+grep -q RIGHT_VIZ demo/assets/split.cast
+grep -q LEFT_DIRECTIVE demo/assets/split.cast
+
+# compress, then render through the REAL CLI surface (tt-demo render -> lib/render.sh);
+# render_target prefers the compressed .min.cast
 "$TT_DEMO" compress demo/assets/hello.cast --out demo/assets/hello.min.cast
-bash "$ROOT/lib/render.sh" gif demo/assets/hello.min.cast demo/assets/hello.gif
+"$TT_DEMO" render hello --gif
 [[ -s demo/assets/hello.gif ]]
 
 # post
