@@ -1,4 +1,5 @@
 mod doctor;
+mod manifest;
 
 use clap::{Parser, Subcommand};
 
