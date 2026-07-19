@@ -95,6 +95,21 @@ pub struct Scene {
 
 impl Scene {
     pub fn is_raw(&self) -> bool { self.raw_tape.is_some() || self.raw_script.is_some() }
+
+    /// Resolve `engine: auto` to a concrete engine.
+    /// asciinema = live/real-timing (split, injected keys, or raw_script);
+    /// vhs       = deterministic scripted single-terminal (raw_tape, else single).
+    pub fn resolved_engine(&self) -> Engine {
+        match self.engine {
+            Engine::Vhs | Engine::Asciinema => self.engine,
+            Engine::Auto => {
+                if self.raw_tape.is_some() { return Engine::Vhs; }
+                if self.raw_script.is_some() { return Engine::Asciinema; }
+                let has_keys = self.right.as_ref().and_then(|p| p.keys.as_ref()).is_some_and(|k| !k.is_empty());
+                if self.layout == Layout::Split || has_keys { Engine::Asciinema } else { Engine::Vhs }
+            }
+        }
+    }
 }
 
 impl Manifest {
@@ -184,5 +199,24 @@ scenes:
     fn rejects_duplicate_ids() {
         let y = "project: d\ntheme: t\nscenes:\n  - id: x\n    layout: single\n    right: { run: r }\n  - id: x\n    layout: single\n    right: { run: r2 }\n";
         assert!(Manifest::from_str(y).unwrap_err().to_string().contains("duplicate"));
+    }
+
+    #[test]
+    fn engine_auto_split_is_asciinema() {
+        let m = Manifest::from_str(VALID).unwrap();
+        assert_eq!(m.scene("a").unwrap().resolved_engine(), Engine::Asciinema);
+    }
+
+    #[test]
+    fn engine_auto_raw_tape_is_vhs() {
+        let m = Manifest::from_str(VALID).unwrap();
+        assert_eq!(m.scene("b").unwrap().resolved_engine(), Engine::Vhs);
+    }
+
+    #[test]
+    fn engine_explicit_overrides_auto() {
+        let y = "project: d\ntheme: t\nscenes:\n  - id: x\n    engine: vhs\n    layout: split\n    right: { run: r }\n";
+        let m = Manifest::from_str(y).unwrap();
+        assert_eq!(m.scene("x").unwrap().resolved_engine(), Engine::Vhs);
     }
 }
