@@ -3,8 +3,10 @@ mod compress;
 mod doctor;
 mod manifest;
 mod orchestrate;
+mod post;
 mod ready;
 mod record;
+mod scaffold;
 
 use clap::{Parser, Subcommand};
 
@@ -34,6 +36,17 @@ enum Cmd {
         #[arg(long)]
         dry_run: bool,
     },
+    /// Scaffold demo/ (demos.yaml, assets/, .gitignore) in the current directory.
+    Init,
+    /// List scenes from demo/demos.yaml with their resolved engine + recorded status.
+    List,
+    /// Assemble demo/POST.draft.md from the manifest + captions.
+    Post {
+        /// Narration mode: `none` (caption verbatim), `local` (prompt-server), `claude` (marker
+        /// for the skill to fill). Unknown values fall back to `none`.
+        #[arg(long, default_value = "none")]
+        narrate: String,
+    },
 }
 
 fn main() -> anyhow::Result<()> {
@@ -43,6 +56,28 @@ fn main() -> anyhow::Result<()> {
         Cmd::Record { ids, dry_run } => {
             let ids = if ids.is_empty() || ids == ["all"] { None } else { Some(ids) };
             record::run(ids, dry_run)
+        }
+        Cmd::Init => scaffold::init(),
+        Cmd::List => scaffold::list(),
+        Cmd::Post { narrate } => {
+            let yaml = std::fs::read_to_string("demo/demos.yaml")
+                .map_err(|e| anyhow::anyhow!("reading demo/demos.yaml: {e}"))?;
+            let m = manifest::Manifest::from_str(&yaml)?;
+            // Unknown --narrate values quietly fall back to `none` rather than erroring,
+            // since a typo here shouldn't block producing a usable draft.
+            let mode = match narrate.as_str() {
+                "local" => post::Narrate::Local,
+                "claude" => post::Narrate::Claude,
+                _ => post::Narrate::None,
+            };
+            let templates_dir = std::env::var("TT_DEMO_HOME").map(std::path::PathBuf::from)
+                .unwrap_or_else(|_| std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".."))
+                .join("templates");
+            let md = post::assemble(&m, mode, &templates_dir)?;
+            std::fs::write("demo/POST.draft.md", &md)
+                .map_err(|e| anyhow::anyhow!("writing demo/POST.draft.md: {e}"))?;
+            println!("wrote demo/POST.draft.md");
+            Ok(())
         }
     }
 }
