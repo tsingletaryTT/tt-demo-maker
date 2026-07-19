@@ -166,9 +166,11 @@ pub fn run(ids: Option<Vec<String>>, dry_run: bool) -> anyhow::Result<()> {
                 } else {
                     // Single pane: capture `dur` seconds of a possibly-non-exiting viz, then
                     // stop it cleanly (SIGTERM, then wait) rather than letting tmux_capture.sh
-                    // run forever.
+                    // run forever. Wrap the entire run command in a subshell so that
+                    // multi-statement commands (e.g. "setup; long-viz") are fully backgrounded
+                    // together, rather than only the last statement.
                     let inner = format!(
-                        "{right_run} & __ttp=$!; sleep {dur}; kill $__ttp 2>/dev/null; wait $__ttp 2>/dev/null; true"
+                        "( {right_run} ) & __ttp=$!; sleep {dur}; kill $__ttp 2>/dev/null; wait $__ttp 2>/dev/null; true"
                     );
                     std::process::Command::new("bash")
                         .arg(home().join("lib/tmux_capture.sh"))

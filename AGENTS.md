@@ -160,3 +160,36 @@ tests including the raw-scene bug, golden 3-run evidence, warning count):
 ---
 
 *Task 13 status: complete.*
+
+---
+
+## v1 Limitations / v1.1 Roadmap
+
+This section documents known limitations and features explicitly deferred to v1.1,
+kept in sync with README.md's "v1 limitations" section.
+
+### Deferred Features (v1.1)
+
+- **Raw-hatch CLI capture**: `raw_tape`/`raw_script` scenes are recognized and skipped
+  cleanly (no error) — VHS/asciinema must be run by hand for these escape hatches.
+- **Compiled-tape/driver execution**: The VHS tape and asciinema driver text are produced
+  and validated at compile time but never executed by `record`; real capture uses raw
+  `lib/*.sh` scripts instead. The compiled driver's shell quoting is also not yet
+  POSIX-safe (see `compile.rs`).
+- **Theme-matched GIF palette**: `tt-demo render --gif` uses `agg`'s default palette,
+  not the manifest's `theme:` colors.
+- **MP4 rendering**: `lib/render.sh mp4` (Xvfb + xterm + ffmpeg) has no automated test
+  coverage — most CI runners lack a display server.
+- **Server stop / board reset on switch**: `Step::Switch` starts the next server and gates
+  on readiness but never stops the prior server or runs a `tt-smi -r` board reset.
+
+### v1 Known Behavior (Documented for v1.1 Clarity)
+
+- **Single-pane scenes with multi-statement commands**: If a scene's `right.run` is a
+  multi-statement sequence (e.g. `"setup; long-viz"`), the entire command is backgrounded
+  as a subshell in the kill/wait safety net (lines 170–172 in `bin/src/record.rs`).
+  Individual non-terminating sub-steps are not separately managed — only the whole sequence
+  gets the `kill` timeout.
+- **Automated server start/readiness testing**: The `Step::Switch` readiness gating path
+  (`serve.sh` + `poll_http`/log-wait in `ready::` and `wait_for_log()`) is verified
+  manually on real hardware but lacks automated test coverage. This is planned for v1.1.

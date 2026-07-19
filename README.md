@@ -102,3 +102,10 @@ following are deliberately deferred to v1.1:
   and waits for its readiness gate, but never stops whatever was running before it or runs
   a `tt-smi -r` board reset — switching between two exclusive hardware-backed servers back
   to back is not yet safe to automate.
+- **Single-pane scenes with multi-statement commands.** When `right.run` is a multi-statement
+  sequence (e.g. `"setup; long-viz"`), the entire command is backgrounded as a subshell,
+  but individual non-terminating sub-steps are not separately managed — the kill/wait safety
+  net covers the whole sequence, not intermediate steps.
+- **Automated server start/readiness testing.** The `Step::Switch` server start + readiness-gating
+  path (`serve.sh` + `poll_http`/log-wait) is verified manually but has no automated test
+  coverage yet — planned for v1.1.
