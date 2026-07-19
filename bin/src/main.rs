@@ -60,6 +60,17 @@ enum Cmd {
 }
 
 fn main() -> anyhow::Result<()> {
+    // Restore the default (kill-the-process) SIGPIPE disposition. Rust's runtime sets
+    // SIGPIPE to SIG_IGN on startup, which turns a downstream reader closing early (e.g.
+    // `tt-demo record --dry-run | grep -q ...`, exactly what the golden e2e test does) into
+    // an `Err(BrokenPipe)` from the next `println!`/`print!` — and those macros `.unwrap()`
+    // internally, so the whole process panics instead of exiting quietly like every other
+    // well-behaved Unix CLI. Resetting to SIG_DFL here (before any output) makes a closed
+    // stdout pipe just terminate us via the signal, matching normal `grep -q`/`head` idioms.
+    unsafe {
+        libc::signal(libc::SIGPIPE, libc::SIG_DFL);
+    }
+
     match Cli::parse().cmd {
         Cmd::Doctor => doctor::run(),
         Cmd::Compress { cast, max_idle, out } => compress::run(&cast, max_idle, out.as_deref()),
