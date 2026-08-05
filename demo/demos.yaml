@@ -29,6 +29,16 @@ scenes:
     left:  { run: "bash demo/tt-burst.sh 9" }
     right: { run: "tt-toplike {backend} --profile hyper --mode arcade -q" }
     caption: "Nine seconds of sustained matmuls — the arcade hero climbs as device 0 ramps from 16W idle toward 140W."
+  - id: ouroboros
+    title: "Ouroboros: tt-demo recording tt-demo"
+    layout: split
+    split_ratio: 55
+    duration: 42s
+    # env -u TMUX: the inner tt-demo spawns its own (PID-suffixed) tmux session from
+    # inside the outer capture session; tmux refuses to nest unless TMUX is unset.
+    left:  { run: "sleep 2; env -u TMUX tt-demo record short-burst && tt-demo compress demo/assets/short-burst.cast" }
+    right: { run: "tt-toplike {backend} --profile hyper --mode arcade -q" }
+    caption: "The tool films itself — the left pane runs a real `tt-demo record short-burst` (matmul burst included), while the right pane watches the board react to its own filming."
   - id: power-collapse
     title: "Load ends, power collapses (table)"
     layout: split

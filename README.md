@@ -36,6 +36,16 @@ as device 0 ramps from ~16 W idle toward ~140 W.
 
 ![Power collapsing back to idle in the live telemetry table](media/power-collapse.gif)
 
+And the section below was placed here by `tt-demo publish ouroboros --readme README.md`
+— footage of the tool recording the footage above, end-to-end through the v1.1 flow
+(`rehearse → record → compress → render → verify → publish`):
+
+<!-- tt-demo:gallery:begin -->
+**Ouroboros: tt-demo recording tt-demo** — The tool films itself — the left pane runs a real `tt-demo record short-burst` (matmul burst included), while the right pane watches the board react to its own filming.
+
+![Ouroboros: tt-demo recording tt-demo](media/ouroboros.gif)
+<!-- tt-demo:gallery:end -->
+
 ## How it works
 
 You describe scenes in a small YAML manifest; the toolkit does the terminal ballet:
