@@ -94,6 +94,16 @@ grep -q CLI_RIGHT demo/assets/cli-split.cast
 "$TT_DEMO" post --narrate none
 grep -q "It records." demo/POST.draft.md
 
+# publish: copy artifact + splice gallery between markers
+printf '# G\n<!-- tt-demo:gallery:begin -->\n<!-- tt-demo:gallery:end -->\n' > GALLERY_README.md
+"$TT_DEMO" publish hello --dir media --readme GALLERY_README.md
+[[ -s media/hello.gif ]]
+grep -q '!\[Hello\](media/hello.gif)' GALLERY_README.md
+grep -q 'It records.' GALLERY_README.md
+# repeatable: second publish doesn't duplicate the entry
+"$TT_DEMO" publish hello --dir media --readme GALLERY_README.md
+[[ "$(grep -c 'media/hello.gif' GALLERY_README.md)" == "1" ]]
+
 # rehearse: stub tt-smi flips from idle to loaded when the directive's flag file appears,
 # proving the sample loop genuinely overlaps the running directive. $WORK is intentionally
 # expanded at write time (unquoted heredoc delimiter) so the stub bakes in absolute paths.

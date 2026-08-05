@@ -4,6 +4,7 @@ mod doctor;
 mod manifest;
 mod orchestrate;
 mod post;
+mod publish;
 mod ready;
 mod record;
 mod rehearse;
@@ -82,6 +83,17 @@ enum Cmd {
         #[arg(long, default_value = "none")]
         narrate: String,
     },
+    /// Copy rendered artifacts into a committed dir and emit a markdown gallery.
+    Publish {
+        /// Scene ids; omit or `all` for every scene with a rendered artifact.
+        ids: Vec<String>,
+        /// Destination directory for published artifacts.
+        #[arg(long, default_value = "media")]
+        dir: String,
+        /// Splice the gallery into this file between tt-demo:gallery markers.
+        #[arg(long)]
+        readme: Option<std::path::PathBuf>,
+    },
 }
 
 fn main() -> anyhow::Result<()> {
@@ -131,6 +143,10 @@ fn main() -> anyhow::Result<()> {
                 .map_err(|e| anyhow::anyhow!("writing demo/POST.draft.md: {e}"))?;
             println!("wrote demo/POST.draft.md");
             Ok(())
+        }
+        Cmd::Publish { ids, dir, readme } => {
+            let ids = if ids.is_empty() || ids == ["all"] { None } else { Some(ids) };
+            publish::run(ids, &dir, readme.as_deref())
         }
     }
 }
