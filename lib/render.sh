@@ -4,7 +4,15 @@ set -euo pipefail
 MODE="$1"; IN="$2"; OUT="$3"
 case "$MODE" in
   gif)
-    agg "$IN" "$OUT"
+    # Optional theme + encoding knobs arrive as env vars from bin/src/render.rs
+    # (AGG_THEME from themes/<theme>.agg; the rest from the manifest's
+    # defaults.render). Unset vars mean "use agg's own default".
+    ARGS=()
+    [[ -n "${AGG_THEME:-}" ]]     && ARGS+=(--theme "$AGG_THEME")
+    [[ -n "${AGG_FPS_CAP:-}" ]]   && ARGS+=(--fps-cap "$AGG_FPS_CAP")
+    [[ -n "${AGG_FONT_SIZE:-}" ]] && ARGS+=(--font-size "$AGG_FONT_SIZE")
+    [[ -n "${AGG_SPEED:-}" ]]     && ARGS+=(--speed "$AGG_SPEED")
+    agg "${ARGS[@]}" "$IN" "$OUT"
     ;;
   mp4)
     DISPLAY_NUM=":99"; FONT="Ubuntu Mono"; FONT_SIZE=13; SPEED="${SPEED:-1}"

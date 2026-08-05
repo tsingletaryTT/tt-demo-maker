@@ -11,7 +11,7 @@ cd "$WORK"
 cat > have.yaml <<'YAML'
 project: golden
 theme: tt-brand
-defaults: { cols: 100, rows: 30, backend: "--host", outputs: [cast, gif] }
+defaults: { cols: 100, rows: 30, backend: "--host", outputs: [cast, gif], render: { fps_cap: 10, font_size: 12 } }
 scenes:
   - id: hello
     title: "Hello"

@@ -24,6 +24,28 @@ pub fn render_target(id: &str, which: &str, assets_dir: &Path) -> (PathBuf, Path
     (cast, out)
 }
 
+/// Environment pairs for lib/render.sh: the agg theme string (from
+/// `themes/<theme>.agg` under TT_DEMO_HOME, if present) plus any
+/// `defaults.render` encoding options. Missing theme file = no pair (agg
+/// falls back to its default palette) — never an error, so themes without
+/// an agg variant keep working.
+pub fn agg_env(m: &Manifest, home: &Path) -> Vec<(String, String)> {
+    let mut env = Vec::new();
+    let theme_file = home.join("themes").join(format!("{}.agg", m.theme));
+    if let Ok(s) = std::fs::read_to_string(&theme_file) {
+        let s = s.trim();
+        if !s.is_empty() {
+            env.push(("AGG_THEME".to_string(), s.to_string()));
+        }
+    }
+    if let Some(r) = &m.defaults.render {
+        if let Some(f) = r.fps_cap { env.push(("AGG_FPS_CAP".to_string(), f.to_string())); }
+        if let Some(f) = r.font_size { env.push(("AGG_FONT_SIZE".to_string(), f.to_string())); }
+        if let Some(s) = r.speed { env.push(("AGG_SPEED".to_string(), s.to_string())); }
+    }
+    env
+}
+
 /// `tt-demo render <id> --gif|--mp4`: validate the scene exists, then invoke
 /// `lib/render.sh <which> <in.cast> <out>` for each requested format.
 pub fn run(id: &str, gif: bool, mp4: bool) -> anyhow::Result<()> {
@@ -42,6 +64,7 @@ pub fn run(id: &str, gif: bool, mp4: bool) -> anyhow::Result<()> {
 
     let assets_dir = PathBuf::from("demo/assets");
     let script = home().join("lib/render.sh");
+    let env = agg_env(&m, &home());
 
     let mut formats = Vec::new();
     if gif { formats.push("gif"); }
@@ -61,6 +84,7 @@ pub fn run(id: &str, gif: bool, mp4: bool) -> anyhow::Result<()> {
             .arg(which)
             .arg(&cast)
             .arg(&out)
+            .envs(env.iter().map(|(k, v)| (k.as_str(), v.as_str())))
             .status()
             .with_context(|| format!("spawning {}", script.display()))?;
         if !status.success() {
@@ -96,5 +120,29 @@ mod tests {
         assert_eq!(out, dir.join("s.gif"));
 
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn agg_env_includes_theme_and_render_opts() {
+        // Fake home with a theme file for theme `tb`.
+        let home = std::env::temp_dir().join(format!("tt-demo-aggenv-{}", std::process::id()));
+        std::fs::create_dir_all(home.join("themes")).unwrap();
+        std::fs::write(home.join("themes/tb.agg"), "0F2A35,E8F0F2,0F2A35\n").unwrap();
+
+        let y = "project: d\ntheme: tb\ndefaults: { render: { fps_cap: 10, font_size: 12, speed: 1.25 } }\nscenes:\n  - id: x\n    right: { run: r }\n";
+        let m = crate::manifest::Manifest::from_str(y).unwrap();
+        let env = agg_env(&m, &home);
+        assert!(env.contains(&("AGG_THEME".into(), "0F2A35,E8F0F2,0F2A35".into())));
+        assert!(env.contains(&("AGG_FPS_CAP".into(), "10".into())));
+        assert!(env.contains(&("AGG_FONT_SIZE".into(), "12".into())));
+        assert!(env.contains(&("AGG_SPEED".into(), "1.25".into())));
+
+        // Unknown theme file -> no AGG_THEME pair, no error.
+        let y2 = "project: d\ntheme: ghost\nscenes:\n  - id: x\n    right: { run: r }\n";
+        let m2 = crate::manifest::Manifest::from_str(y2).unwrap();
+        let env2 = agg_env(&m2, &home);
+        assert!(env2.iter().all(|(k, _)| k != "AGG_THEME"));
+
+        std::fs::remove_dir_all(&home).ok();
     }
 }
