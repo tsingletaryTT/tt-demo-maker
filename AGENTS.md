@@ -163,12 +163,51 @@ tests including the raw-scene bug, golden 3-run evidence, warning count):
 
 ---
 
+### v1.1: rehearse / verify / publish + render tuning, August 5 2026
+
+Taylor asked for real-hardware demo footage embedded in the README. Recording it (three
+scenes on the QuietBox's 4× P300C: ttnn matmul bursts on device 0 + tt-toplike hybrid
+visualizations) surfaced five capability gaps — every place the paved path had to be left
+manually. Taylor then asked to develop all five as v1.1
+(plan: `docs/superpowers/plans/2026-08-05-tt-demo-v1.1.md`, branch `feat/tt-demo-v1.1`,
+version 0.1.0 → 0.2.0):
+
+- **`tt-demo rehearse <id>`** (the big one): run a scene's directive while sampling
+  `tt-smi -s`, report per-device idle→peak power/aiclk deltas, `--require-reaction` to
+  hard-fail quiet boards. Born from the trap where the "LLM server" on :8001 turned out to
+  be a CPU fallback (`tt-local-generator prompt_server.py`) — inference moved nothing;
+  footage would have shown a dead board. Golden-tested with a stub `tt-smi` whose telemetry
+  flips when the directive's flag file appears (proves the sample loop overlaps the run).
+- **`defaults.render` + theme-matched agg palettes**: `render: { fps_cap, font_size,
+  speed }` in the manifest → `AGG_*` env vars → `lib/render.sh`; `themes/<theme>.agg`
+  (tt-brand, dracula) supplies `agg --theme`. Stock agg defaults had produced 16–25 MB GIFs;
+  the hand-tuned flags (fps_cap 10, font_size 12, speed 1.25) brought scenes under ~6 MB
+  and are now dogfooded in this repo's own `demo/demos.yaml`.
+- **`tt-demo compress` writes `<id>.min.cast` by default** (what `render_target()` already
+  preferred); `--stdout` keeps the old pipe behavior. Previously it dumped a 16 MB cast
+  into the terminal when `--out` was forgotten.
+- **`tt-demo verify <id>`**: ffprobe frame count → ffmpeg select+tile contact-sheet PNG
+  (`<id>.sheet.png`) so an agent can Read the footage instead of playing it.
+- **`tt-demo publish [ids] --dir media --readme README.md`**: copy artifacts out of
+  gitignored `demo/assets/` into a committed dir + emit/splice a markdown gallery between
+  `<!-- tt-demo:gallery:begin/end -->` markers (repeatable — markers survive).
+
+All five follow the house split (Rust resolves/validates/orchestrates, bash talks to
+agg/ffmpeg). 32 unit tests + extended `tests/e2e_golden.sh` (compress default, tuned+themed
+render, verify PNG magic bytes, publish splice idempotence, rehearse reaction + no-reaction
+paths) — all hardware-free. Raw-hatch capture, compiled-driver execution, MP4 coverage, and
+server-stop/board-reset remain deferred (see below).
+
+---
+
 ## v1 Limitations / v1.1 Roadmap
 
-This section documents known limitations and features explicitly deferred to v1.1,
-kept in sync with README.md's "v1 limitations" section.
+This section documents known limitations and features still deferred after v1.1,
+kept in sync with README.md's "v1 limitations" section. (Delivered in v1.1: compress
+`.min.cast` default, `defaults.render` + agg theme palettes, `rehearse`, `verify`,
+`publish` — see the v1.1 entry above.)
 
-### Deferred Features (v1.1)
+### Deferred Features
 
 - **Raw-hatch CLI capture**: `raw_tape`/`raw_script` scenes are recognized and skipped
   cleanly (no error) — VHS/asciinema must be run by hand for these escape hatches.
@@ -176,8 +215,6 @@ kept in sync with README.md's "v1 limitations" section.
   and validated at compile time but never executed by `record`; real capture uses raw
   `lib/*.sh` scripts instead. The compiled driver's shell quoting is also not yet
   POSIX-safe (see `compile.rs`).
-- **Theme-matched GIF palette**: `tt-demo render --gif` uses `agg`'s default palette,
-  not the manifest's `theme:` colors.
 - **MP4 rendering**: `lib/render.sh mp4` (Xvfb + xterm + ffmpeg) has no automated test
   coverage — most CI runners lack a display server.
 - **Server stop / board reset on switch**: `Step::Switch` starts the next server and gates

@@ -28,6 +28,7 @@ All optional; a scene can override the ones that matter to it via its own top-le
 | `padding` | int | VHS theme padding (pixels). |
 | `typing_speed` | string | VHS `Set TypingSpeed` (e.g. `60ms`). |
 | `playback_speed` | float | VHS `Set PlaybackSpeed`. |
+| `render` | map | GIF encoding knobs for `tt-demo render`: `fps_cap` (agg --fps-cap), `font_size` (agg --font-size), `speed` (agg --speed). Animated TUI scenes at agg defaults produce 15–25 MB GIFs; `{ fps_cap: 10, font_size: 12 }` brings a 20s scene under ~6 MB. |
 
 ### `servers.<name>`
 

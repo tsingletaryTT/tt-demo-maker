@@ -18,7 +18,8 @@ the left pane runs a real ttnn matmul burst on device 0
 ([`demo/tt-burst.sh`](demo/tt-burst.sh)) and the right pane is
 `tt-toplike --backend hybrid` watching live board telemetry. Scenes were captured with
 `tt-demo record all` and idle-trimmed with `tt-demo compress`; GIF encoding used
-hand-tuned `agg` flags pending the v1.1 render options (see limitations below).
+hand-tuned `agg` flags — the exact values now expressed as `defaults.render` in the
+manifest since v1.1 added render tuning (see limitations below).
 
 **A short burst (starfield)** — a five-second matmul burst on device 0: clocks jump
 800→1350 MHz, power spikes toward 140 W, the starfield flares, then everything settles.
@@ -100,9 +101,12 @@ tt-demo doctor                 # check for tmux, asciinema, vhs, agg, ffmpeg, Xv
 tt-demo init                   # scaffold demo/demos.yaml, demo/assets/, demo/.gitignore
 $EDITOR demo/demos.yaml        # describe your scenes — see skill/manifest-schema.md
 tt-demo record --dry-run       # validate + print the capture plan; touches no hardware
+tt-demo rehearse <id>          # preflight: does the directive move real telemetry?
 tt-demo record all             # capture every scene (single/split/serve-wait as declared)
-tt-demo compress demo/assets/<id>.cast   # idle-trim a raw cast
-tt-demo render <id> --gif      # (or --mp4) post-process a clean cast into an artifact
+tt-demo compress demo/assets/<id>.cast   # idle-trim -> <id>.min.cast (render prefers it)
+tt-demo render <id> --gif      # (or --mp4) themed + tuned via defaults.render
+tt-demo verify <id>            # contact-sheet PNG of the rendered footage
+tt-demo publish all --readme README.md   # copy artifacts + splice the gallery
 tt-demo post --narrate claude  # assemble demo/POST.draft.md (narration written by the skill)
 ```
 
@@ -166,9 +170,23 @@ It builds the release binary if needed and runs everything in a throwaway temp d
 
 ## v1 limitations / v1.1
 
+**Delivered in v1.1** (born from recording the footage above by hand):
+
+- `tt-demo compress` writes `<id>.min.cast` by default (the name `render` prefers);
+  `--stdout` restores the old pipe behavior.
+- `defaults.render` manifest options (`fps_cap`, `font_size`, `speed`) and theme-matched
+  agg palettes (`themes/<theme>.agg`) — `render --gif` is now themed and size-tunable.
+- `tt-demo rehearse <id>` — run a scene's directive while sampling `tt-smi`, report the
+  idle→load delta per device, and (with `--require-reaction`) hard-fail when the board
+  wouldn't visibly react. Catches quiet-board footage before it's recorded.
+- `tt-demo verify <id>` — tile frames of the rendered artifact into a contact-sheet PNG
+  for visual QA without playing it.
+- `tt-demo publish` — copy artifacts from gitignored `demo/assets/` into a committed dir
+  and emit/splice a markdown gallery (between `<!-- tt-demo:gallery:begin/end -->` markers).
+
 `tt-demo record` (non-dry-run) drives declarative (`left`/`right`) scenes straight through
 the tested `lib/*.sh` capture primitives, using each scene's raw `run:` commands. The
-following are deliberately deferred to v1.1:
+following remain deferred:
 
 - **Raw-hatch CLI capture.** `raw_tape`/`raw_script` scenes are recognized and skipped
   cleanly (no error) rather than executed — run VHS/asciinema on them by hand for now.
@@ -178,12 +196,6 @@ following are deliberately deferred to v1.1:
   directly against the scene's raw commands instead. The compiled-driver's own shell
   quoting (`Debug`-repr, in `compile.rs`) also isn't POSIX-shell-safe yet — fine for the
   unexecuted text today, but must be fixed before that path is wired up.
-- **Theme-matched GIF palette + render tuning.** `tt-demo render --gif` shells out to
-  `agg` with its default palette and default encoding flags; it doesn't yet apply the
-  manifest's `theme:` (`tt-brand`/`dracula`) colors the way the VHS path does, nor expose
-  `agg`'s size/quality levers (`--fps-cap`, `--font-size`, `--speed`). Animated TUI scenes
-  at defaults produce 15–25 MB GIFs; the README footage above needed hand-tuned flags to
-  get under ~6 MB per scene.
 - **MP4 rendering is unexercised.** `lib/render.sh mp4` (Xvfb + xterm + ffmpeg) exists but
   has no automated coverage here — it needs a display server most CI runners don't have.
 - **Server stop / board reset on switch.** `Step::Switch` starts the next scene's server

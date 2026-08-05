@@ -5,7 +5,13 @@
 # These mirror the three hardware-free scenes in examples/demos.yaml.
 project: tt-demo-maker
 theme: tt-brand
-defaults: { cols: 168, rows: 42, backend: "--backend hybrid", outputs: [cast, gif] }
+defaults:
+  cols: 168
+  rows: 42
+  backend: "--backend hybrid"
+  outputs: [cast, gif]
+  # The exact hand-tuned agg values used for the README footage, now manifest-driven (v1.1).
+  render: { fps_cap: 10, font_size: 12, speed: 1.25 }
 scenes:
   - id: short-burst
     title: "A short burst (starfield)"
