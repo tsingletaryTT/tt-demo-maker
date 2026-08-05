@@ -30,6 +30,21 @@ pub struct Defaults {
     pub padding: Option<u16>,
     pub typing_speed: Option<String>,
     pub playback_speed: Option<f32>,
+    /// Encoding options for `tt-demo render` (see RenderOpts).
+    #[serde(default)]
+    pub render: Option<RenderOpts>,
+}
+
+/// GIF/artifact encoding knobs consumed by `tt-demo render` (agg flags).
+/// All optional; omitted fields fall back to agg's own defaults.
+#[derive(Debug, Default, Deserialize)]
+pub struct RenderOpts {
+    /// agg --fps-cap: cap frames/second (biggest GIF size lever for animated TUIs).
+    pub fps_cap: Option<u16>,
+    /// agg --font-size: pixel size of the rendered glyphs (smaller = smaller file).
+    pub font_size: Option<u16>,
+    /// agg --speed: playback speed multiplier.
+    pub speed: Option<f32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -140,6 +155,19 @@ impl Manifest {
     }
 
     fn validate(&self) -> anyhow::Result<()> {
+        if let Some(r) = &self.defaults.render {
+            if r.fps_cap == Some(0) {
+                anyhow::bail!("defaults.render.fps_cap must be >= 1");
+            }
+            if r.font_size == Some(0) {
+                anyhow::bail!("defaults.render.font_size must be >= 1");
+            }
+            if let Some(s) = r.speed {
+                if !(s.is_finite() && s > 0.0) {
+                    anyhow::bail!("defaults.render.speed must be a positive number");
+                }
+            }
+        }
         let mut seen = std::collections::HashSet::new();
         for s in &self.scenes {
             if s.id.is_empty() { anyhow::bail!("scene with empty id"); }
@@ -222,6 +250,30 @@ scenes:
     fn engine_auto_raw_tape_is_vhs() {
         let m = Manifest::from_str(VALID).unwrap();
         assert_eq!(m.scene("b").unwrap().resolved_engine(), Engine::Vhs);
+    }
+
+    #[test]
+    fn parses_render_defaults() {
+        let y = "project: d\ntheme: t\ndefaults: { render: { fps_cap: 10, font_size: 12, speed: 1.25 } }\nscenes:\n  - id: x\n    right: { run: r }\n";
+        let m = Manifest::from_str(y).unwrap();
+        let r = m.defaults.render.as_ref().unwrap();
+        assert_eq!(r.fps_cap, Some(10));
+        assert_eq!(r.font_size, Some(12));
+        assert_eq!(r.speed, Some(1.25));
+    }
+
+    #[test]
+    fn render_defaults_absent_is_none() {
+        let m = Manifest::from_str(VALID).unwrap();
+        assert!(m.defaults.render.is_none());
+    }
+
+    #[test]
+    fn rejects_zero_fps_cap_and_nonpositive_speed() {
+        let y = "project: d\ntheme: t\ndefaults: { render: { fps_cap: 0 } }\nscenes:\n  - id: x\n    right: { run: r }\n";
+        assert!(Manifest::from_str(y).unwrap_err().to_string().contains("fps_cap"));
+        let y2 = "project: d\ntheme: t\ndefaults: { render: { speed: 0.0 } }\nscenes:\n  - id: x\n    right: { run: r }\n";
+        assert!(Manifest::from_str(y2).unwrap_err().to_string().contains("speed"));
     }
 
     #[test]
