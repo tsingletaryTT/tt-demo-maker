@@ -1,0 +1,33 @@
+# Real-hardware demo manifest for tt-demo-maker's own README.
+# Recorded on a QuietBox: 4x P300C (Blackhole, P300X2 mesh). The load generator
+# (demo/tt-burst.sh) runs a ttnn 4096x4096 bf16 matmul loop on device 0; the right
+# pane watches real telemetry via tt-toplike's hybrid backend (sysfs + tt-smi).
+# These mirror the three hardware-free scenes in examples/demos.yaml.
+project: tt-demo-maker
+theme: tt-brand
+defaults: { cols: 168, rows: 42, backend: "--backend hybrid", outputs: [cast, gif] }
+scenes:
+  - id: short-burst
+    title: "A short burst (starfield)"
+    layout: split
+    split_ratio: 38
+    duration: 16s
+    left:  { run: "bash demo/tt-burst.sh 5" }
+    right: { run: "tt-toplike {backend} --profile hyper --mode starfield -q" }
+    caption: "A five-second matmul burst on device 0 — clocks jump 800→1350MHz, power spikes to ~140W, the starfield flares, then everything settles."
+  - id: sustained-load
+    title: "Sustained load (arcade)"
+    layout: split
+    split_ratio: 38
+    duration: 20s
+    left:  { run: "bash demo/tt-burst.sh 9" }
+    right: { run: "tt-toplike {backend} --profile hyper --mode arcade -q" }
+    caption: "Nine seconds of sustained matmuls — the arcade hero climbs as device 0 ramps from 16W idle toward 140W."
+  - id: power-collapse
+    title: "Load ends, power collapses (table)"
+    layout: split
+    split_ratio: 38
+    duration: 20s
+    left:  { run: "bash demo/tt-burst.sh 6; echo; echo 'load stopped — watch power fall'" }
+    right: { run: "tt-toplike {backend} --profile hyper -q" }
+    caption: "When the burst ends the board falls back to idle — power collapses ~140W→16W and clocks drop back to 800MHz in the live table."

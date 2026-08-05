@@ -10,6 +10,31 @@ pairs each *directive* with the *reaction* it caused.
 It exists so recording machinery (tmux + asciinema/VHS + ffmpeg + agg, idle-trimming, a demo
 registry, inference-server-aware readiness gating) isn't reinvented per-project.
 
+## See it in action
+
+Three scenes recorded by this toolkit on real hardware — a QuietBox with 4× P300C
+(Blackhole) boards — from this repo's own [`demo/demos.yaml`](demo/demos.yaml). In each,
+the left pane runs a real ttnn matmul burst on device 0
+([`demo/tt-burst.sh`](demo/tt-burst.sh)) and the right pane is
+`tt-toplike --backend hybrid` watching live board telemetry. Scenes were captured with
+`tt-demo record all` and idle-trimmed with `tt-demo compress`; GIF encoding used
+hand-tuned `agg` flags pending the v1.1 render options (see limitations below).
+
+**A short burst (starfield)** — a five-second matmul burst on device 0: clocks jump
+800→1350 MHz, power spikes toward 140 W, the starfield flares, then everything settles.
+
+![Short matmul burst reflected in the starfield visualization](media/short-burst.gif)
+
+**Sustained load (arcade)** — nine seconds of sustained matmuls; the arcade hero climbs
+as device 0 ramps from ~16 W idle toward ~140 W.
+
+![Sustained matmul load driving the arcade visualization](media/sustained-load.gif)
+
+**Load ends, power collapses (table)** — when the burst stops, device 0 falls from
+~120 W back to idle and clocks drop back to 800 MHz in the live table view.
+
+![Power collapsing back to idle in the live telemetry table](media/power-collapse.gif)
+
 ## How it works
 
 You describe scenes in a small YAML manifest; the toolkit does the terminal ballet:
@@ -103,6 +128,9 @@ it into a project as a starting point:
 mkdir -p demo && cp examples/demos.yaml demo/demos.yaml
 ```
 
+This repo's own [`demo/demos.yaml`](demo/demos.yaml) is the complementary *real-hardware*
+example — the manifest behind the footage at the top of this README.
+
 ## Non-invasive by default
 
 Demo scene commands should prefer `--host` or `--backend hybrid` (interpolated via the
@@ -150,9 +178,12 @@ following are deliberately deferred to v1.1:
   directly against the scene's raw commands instead. The compiled-driver's own shell
   quoting (`Debug`-repr, in `compile.rs`) also isn't POSIX-shell-safe yet — fine for the
   unexecuted text today, but must be fixed before that path is wired up.
-- **Theme-matched GIF palette.** `tt-demo render --gif` shells out to `agg` with its
-  default palette; it doesn't yet apply the manifest's `theme:` (`tt-brand`/`dracula`)
-  colors the way the VHS path does.
+- **Theme-matched GIF palette + render tuning.** `tt-demo render --gif` shells out to
+  `agg` with its default palette and default encoding flags; it doesn't yet apply the
+  manifest's `theme:` (`tt-brand`/`dracula`) colors the way the VHS path does, nor expose
+  `agg`'s size/quality levers (`--fps-cap`, `--font-size`, `--speed`). Animated TUI scenes
+  at defaults produce 15–25 MB GIFs; the README footage above needed hand-tuned flags to
+  get under ~6 MB per scene.
 - **MP4 rendering is unexercised.** `lib/render.sh mp4` (Xvfb + xterm + ffmpeg) exists but
   has no automated coverage here — it needs a display server most CI runners don't have.
 - **Server stop / board reset on switch.** `Step::Switch` starts the next scene's server
