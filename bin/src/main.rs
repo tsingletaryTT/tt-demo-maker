@@ -8,6 +8,7 @@ mod ready;
 mod record;
 mod render;
 mod scaffold;
+mod verify;
 
 use clap::{Parser, Subcommand};
 
@@ -49,6 +50,14 @@ enum Cmd {
         #[arg(long)]
         mp4: bool,
     },
+    /// Tile frames of a rendered artifact into a contact-sheet PNG for visual QA.
+    Verify {
+        /// Scene id (must already be rendered with `tt-demo render`).
+        id: String,
+        /// How many evenly-spaced frames to tile.
+        #[arg(long, default_value_t = 6)]
+        frames: u32,
+    },
     /// Scaffold demo/ (demos.yaml, assets/, .gitignore) in the current directory.
     Init,
     /// List scenes from demo/demos.yaml with their resolved engine + recorded status.
@@ -84,6 +93,7 @@ fn main() -> anyhow::Result<()> {
             record::run(ids, dry_run)
         }
         Cmd::Render { id, gif, mp4 } => render::run(&id, gif, mp4),
+        Cmd::Verify { id, frames } => verify::run(&id, frames),
         Cmd::Init => scaffold::init(),
         Cmd::List => scaffold::list(),
         Cmd::Post { narrate } => {

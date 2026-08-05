@@ -85,6 +85,11 @@ grep -q CLI_RIGHT demo/assets/cli-split.cast
 "$TT_DEMO" render hello --gif
 [[ -s demo/assets/hello.gif ]]
 
+# verify: contact sheet from the rendered gif; PNG magic bytes prove it's a real image
+"$TT_DEMO" verify hello --frames 4
+[[ -s demo/assets/hello.sheet.png ]]
+[[ "$(head -c 8 demo/assets/hello.sheet.png | od -An -tx1 | tr -d ' \n')" == "89504e470d0a1a0a" ]]
+
 # post
 "$TT_DEMO" post --narrate none
 grep -q "It records." demo/POST.draft.md
