@@ -6,6 +6,7 @@ mod orchestrate;
 mod post;
 mod ready;
 mod record;
+mod rehearse;
 mod render;
 mod scaffold;
 mod verify;
@@ -40,6 +41,18 @@ enum Cmd {
         ids: Vec<String>,
         #[arg(long)]
         dry_run: bool,
+    },
+    /// Dry-run a scene's directive against real telemetry (no recording): run it
+    /// while sampling tt-smi and report the idle -> load delta per device.
+    Rehearse {
+        /// Scene id.
+        id: String,
+        /// Minimum watts of power delta that counts as a reaction.
+        #[arg(long, default_value_t = 10.0)]
+        min_delta: f64,
+        /// Exit nonzero when no reaction is detected (for scripted preflights).
+        #[arg(long)]
+        require_reaction: bool,
     },
     /// Render a recorded scene's cast into a GIF and/or MP4 artifact.
     Render {
@@ -91,6 +104,9 @@ fn main() -> anyhow::Result<()> {
         Cmd::Record { ids, dry_run } => {
             let ids = if ids.is_empty() || ids == ["all"] { None } else { Some(ids) };
             record::run(ids, dry_run)
+        }
+        Cmd::Rehearse { id, min_delta, require_reaction } => {
+            rehearse::run(&id, min_delta, require_reaction)
         }
         Cmd::Render { id, gif, mp4 } => render::run(&id, gif, mp4),
         Cmd::Verify { id, frames } => verify::run(&id, frames),

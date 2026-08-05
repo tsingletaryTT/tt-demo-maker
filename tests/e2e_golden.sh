@@ -94,4 +94,45 @@ grep -q CLI_RIGHT demo/assets/cli-split.cast
 "$TT_DEMO" post --narrate none
 grep -q "It records." demo/POST.draft.md
 
+# rehearse: stub tt-smi flips from idle to loaded when the directive's flag file appears,
+# proving the sample loop genuinely overlaps the running directive. $WORK is intentionally
+# expanded at write time (unquoted heredoc delimiter) so the stub bakes in absolute paths.
+mkdir -p stubbin
+cat > stubbin/tt-smi <<STUB
+#!/usr/bin/env bash
+# stub: -s snapshot only
+if [[ -f "$WORK/rehearse.flag" ]]; then
+  echo '{"device_info":[{"telemetry":{"power":" 99.0","aiclk":"1350"}}]}'
+else
+  echo '{"device_info":[{"telemetry":{"power":" 10.0","aiclk":" 800"}}]}'
+fi
+STUB
+chmod +x stubbin/tt-smi
+
+cat >> demo/demos.yaml <<YAML
+  - id: rehearse-scene
+    title: "Rehearsal"
+    layout: single
+    duration: 4s
+    right: { run: "sleep 1; touch $WORK/rehearse.flag; sleep 2" }
+    caption: "Rehearsal flips the stub telemetry."
+YAML
+
+rehearse_out="$(PATH="$PWD/stubbin:$PATH" "$TT_DEMO" rehearse rehearse-scene --min-delta 20 --require-reaction)"
+grep -q "reaction detected" <<<"$rehearse_out"
+
+# and the no-reaction path exits nonzero under --require-reaction
+rm -f "$WORK/rehearse.flag"
+cat >> demo/demos.yaml <<YAML
+  - id: rehearse-quiet
+    title: "Quiet rehearsal"
+    layout: single
+    duration: 2s
+    right: { run: "sleep 1" }
+    caption: "No load, no reaction."
+YAML
+if PATH="$PWD/stubbin:$PATH" "$TT_DEMO" rehearse rehearse-quiet --min-delta 20 --require-reaction; then
+  echo "rehearse-quiet should have failed under --require-reaction" >&2; exit 1
+fi
+
 echo "E2E GOLDEN PASSED"
