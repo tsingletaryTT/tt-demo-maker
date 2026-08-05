@@ -79,8 +79,9 @@ grep -q CLI_LEFT demo/assets/cli-split.cast
 grep -q CLI_RIGHT demo/assets/cli-split.cast
 
 # compress, then render through the REAL CLI surface (tt-demo render -> lib/render.sh);
-# render_target prefers the compressed .min.cast
-"$TT_DEMO" compress demo/assets/hello.cast --out demo/assets/hello.min.cast
+# with NO --out the default output lands at hello.min.cast (what render_target prefers)
+"$TT_DEMO" compress demo/assets/hello.cast
+[[ -s demo/assets/hello.min.cast ]]
 "$TT_DEMO" render hello --gif
 [[ -s demo/assets/hello.gif ]]
 

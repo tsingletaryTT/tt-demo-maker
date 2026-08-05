@@ -26,13 +26,41 @@ pub fn trim(input: &str, max_idle: f64) -> anyhow::Result<String> {
     Ok(out)
 }
 
-pub fn run(path: &std::path::Path, max_idle: f64, out: Option<&std::path::Path>) -> anyhow::Result<()> {
+/// Default output path for a trimmed cast: `x.cast` -> `x.min.cast` (the name
+/// `render_target()` prefers). Errors on `*.min.cast` (double-compress) and on
+/// non-`.cast` inputs rather than guessing.
+pub fn default_out(input: &std::path::Path) -> anyhow::Result<std::path::PathBuf> {
+    let name = input
+        .file_name()
+        .and_then(|n| n.to_str())
+        .with_context(|| format!("bad cast path: {}", input.display()))?;
+    if name.ends_with(".min.cast") {
+        anyhow::bail!("{name} is already a compressed (.min.cast) file");
+    }
+    let stem = name
+        .strip_suffix(".cast")
+        .with_context(|| format!("expected a .cast file, got {name}"))?;
+    Ok(input.with_file_name(format!("{stem}.min.cast")))
+}
+
+pub fn run(
+    path: &std::path::Path,
+    max_idle: f64,
+    out: Option<&std::path::Path>,
+    to_stdout: bool,
+) -> anyhow::Result<()> {
     let input = std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
     let trimmed = trim(&input, max_idle)?;
-    match out {
-        Some(o) => { std::fs::write(o, trimmed)?; println!("wrote {}", o.display()); }
-        None => print!("{trimmed}"),
+    if to_stdout {
+        print!("{trimmed}");
+        return Ok(());
     }
+    let target = match out {
+        Some(o) => o.to_path_buf(),
+        None => default_out(path)?,
+    };
+    std::fs::write(&target, trimmed)?;
+    println!("wrote {}", target.display());
     Ok(())
 }
 
@@ -51,5 +79,22 @@ mod tests {
         assert_eq!(times[0], 0.0);
         assert_eq!(times[1], 0.5);              // 10s gap clamped to max_idle (0.5)
         assert!((times[2] - 0.8).abs() < 1e-9); // following 0.3s gap (< max_idle) preserved: 0.5 + 0.3
+    }
+
+    #[test]
+    fn default_out_swaps_cast_for_min_cast() {
+        let p = default_out(std::path::Path::new("demo/assets/foo.cast")).unwrap();
+        assert_eq!(p, std::path::PathBuf::from("demo/assets/foo.min.cast"));
+    }
+
+    #[test]
+    fn default_out_rejects_already_min() {
+        let err = default_out(std::path::Path::new("demo/assets/foo.min.cast")).unwrap_err();
+        assert!(err.to_string().contains("already"));
+    }
+
+    #[test]
+    fn default_out_rejects_non_cast_extension() {
+        assert!(default_out(std::path::Path::new("demo/assets/foo.gif")).is_err());
     }
 }

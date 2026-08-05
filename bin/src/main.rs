@@ -29,6 +29,9 @@ enum Cmd {
         max_idle: f64,
         #[arg(long)]
         out: Option<std::path::PathBuf>,
+        /// Print the trimmed cast to stdout instead of writing a file.
+        #[arg(long)]
+        stdout: bool,
     },
     /// Record one scene, several, or all (with --dry-run to plan only).
     Record {
@@ -73,7 +76,9 @@ fn main() -> anyhow::Result<()> {
 
     match Cli::parse().cmd {
         Cmd::Doctor => doctor::run(),
-        Cmd::Compress { cast, max_idle, out } => compress::run(&cast, max_idle, out.as_deref()),
+        Cmd::Compress { cast, max_idle, out, stdout } => {
+            compress::run(&cast, max_idle, out.as_deref(), stdout)
+        }
         Cmd::Record { ids, dry_run } => {
             let ids = if ids.is_empty() || ids == ["all"] { None } else { Some(ids) };
             record::run(ids, dry_run)
