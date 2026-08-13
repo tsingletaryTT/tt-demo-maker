@@ -63,28 +63,39 @@ cmd_verify() {  # cmd_verify <file.mp4|dir-of-pngs>
   [ -e "$target" ] || die "verify: no such path: $target"
   tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' RETURN
 
+  # Sample SEVERAL points, not one. A recorder's first second is routinely
+  # black while it starts up and the compositor hands over the first buffer --
+  # judging the whole file on t=1s reports a perfectly good recording as
+  # broken. (This verifier did exactly that on its first real use.) A capture
+  # is blank only if EVERY sample is blank.
+  local samples=0 blank=0 dur
   if [ -d "$target" ]; then
-    frame="$(find "$target" -name '*.png' | sort | sed -n '2p')"
-    [ -n "$frame" ] || die "verify: no frames in $target"
-    cp "$frame" "$tmp/f.png"
+    for frame in $(find "$target" -name '*.png' | sort | awk 'NR%7==2' | head -6); do
+      cp "$frame" "$tmp/s.png"
+      samples=$(( samples + 1 ))
+      _frame_is_blank "$tmp/s.png" && blank=$(( blank + 1 ))
+    done
   else
-    ffmpeg -hide_banner -loglevel error -ss 1 -i "$target" \
-      -frames:v 1 -y "$tmp/f.png" 2>/dev/null || die "verify: cannot decode $target"
+    dur="$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$target" 2>/dev/null)"
+    dur="${dur%%.*}"; [ -n "$dur" ] && [ "$dur" -gt 0 ] 2>/dev/null || dur=10
+    for frac in 10 30 50 70 90; do
+      local at=$(( dur * frac / 100 ))
+      ffmpeg -hide_banner -loglevel error -ss "$at" -i "$target" \
+        -frames:v 1 -y "$tmp/s.png" 2>/dev/null || continue
+      [ -s "$tmp/s.png" ] || continue
+      samples=$(( samples + 1 ))
+      _frame_is_blank "$tmp/s.png" && blank=$(( blank + 1 ))
+    done
   fi
 
-  if _frame_is_blank "$tmp/f.png"; then
-    case $? in
-      2) echo "verify: python3 PIL unavailable -- cannot confirm; treat with suspicion" >&2
-         return 0 ;;
-    esac
-  fi
-  if _frame_is_blank "$tmp/f.png"; then
-    die "verify: BLANK CAPTURE -- every pixel identical.
+  [ "$samples" -gt 0 ] || die "verify: could not sample any frame from $target"
+  if [ "$blank" -eq "$samples" ]; then
+    die "verify: BLANK CAPTURE -- all $samples sampled frames are a single colour.
   The recorder produced a file but the compositor delivered no frames.
   On Wayland this is usually x11grab (always black) or an ungranted
   xdg ScreenCast portal session. Re-run 'screen_capture.sh detect'."
   fi
-  echo "verify: OK -- real content in $target"
+  echo "verify: OK -- real content in $target ($(( samples - blank ))/$samples samples)"
 }
 
 # --- backend detection ------------------------------------------------------
