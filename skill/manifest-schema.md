@@ -100,12 +100,17 @@ off the hot path.*
 
 ## Escape hatches
 
-- `raw_tape: demo/raw/name.tape` — hand-written VHS tape, full control (GUI capture, tricky
-  pixel-stable shots). Engine forced to `vhs`.
+- `raw_tape: demo/raw/name.tape` — hand-written VHS tape, full control (tricky pixel-stable
+  shots). Engine forced to `vhs`. Still a *terminal* recording.
 - `raw_script: demo/raw/name.sh` — hand-written asciinema driver (sourcing `lib/driver.sh`
   helpers `type()/run()/comment()/section()/pause()`). Engine forced to `asciinema`.
 
 A scene may use *one* of these instead of `left`/`right`/`layout`.
+
+**Neither hatch records a GUI window.** VHS and asciinema both only ever see a terminal, so a
+graphical app has no representation in this manifest at all. Record those with
+`lib/screen_capture.sh` directly (OBS or Spectacle, self-verifying against black captures) —
+see `docs/screen-capture.md`.
 
 ## Compact example
 
@@ -141,8 +146,8 @@ scenes:
     right: { run: "tt-toplike {backend} --mode starfield" }
     caption: "A short prompt spikes current, then settles."
 
-  - id: gui-dashboard   # escape hatch
-    raw_tape: demo/raw/gui.tape
+  - id: hero-sequence   # escape hatch: hand-written VHS tape (still a terminal)
+    raw_tape: demo/raw/hero.tape
 ```
 
 See `examples/demos.yaml` for the full hardware-free (`--host`) tt-toplike reference, and

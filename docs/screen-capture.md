@@ -40,6 +40,55 @@ Three of the five options above fail by producing a *plausible file full of blac
 the worst failure mode available: it looks like a working recording until someone plays it,
 which is usually after you have shipped it.
 
-So `verify` runs after every capture and refuses to report success on a blank frame. It is
-tested in both directions — real content passes, synthetic black is rejected — because a
-verifier that cannot fail is exactly the trap it exists to prevent.
+So `verify` runs after every capture and refuses to report success on a blank capture, and
+it is tested in *both* directions — real content passes, synthetic black is rejected —
+because a verifier that cannot fail is exactly the trap it exists to prevent:
+
+```bash
+bash lib/tests/screen_capture_test.sh
+```
+
+That test synthesises its fixtures with ffmpeg's lavfi sources, so it needs no display.
+
+Three corrections, all paid for in lost footage or lost trust:
+
+**Sample the whole file, not one frame.** A recorder's first second is routinely black while
+it starts and the compositor hands over the first buffer. Judging the file at t=1s reported a
+perfectly good 136 s 1080p60 capture as a BLANK CAPTURE — on the first video this verifier was
+ever pointed at. It now samples five points across the duration (six frames for a stills
+burst) and fails only if *every* sample is a single colour.
+
+**Ask about the world, not only the pixels.** A locked session records happily, and a
+wallpaper has thousands of colours, so it sails through any is-it-black test. That cost a
+161-second take of a mountain range at 2:23 am with the application running the whole time
+underneath. `verify` now refuses outright when `loginctl` reports `LockedHint=yes`, and
+`record` wraps the recorder in `systemd-inhibit --what=idle:sleep` so the lock cannot arrive
+part-way through a long unattended take. No amount of frame sampling would have caught this
+one — it is not a question about the frames.
+
+**"Cannot judge" is not "fine."** The frame check needs Pillow, and when the import failed it
+returned non-zero — which the caller read as *not blank*. On a box without Pillow the
+verifier therefore waved every capture through, all-black ones included, while still printing
+its reassuring OK line. It now distinguishes three outcomes (blank / has content / cannot
+judge) and dies on the third rather than vouching for footage it never looked at.
+
+## Requirements
+
+`obs` (video) or `spectacle` (stills), `ffmpeg`/`ffprobe`, and `python3` with Pillow for the
+blank-frame check. `systemd-inhibit` and `loginctl` are used when present.
+
+`tt-demo doctor` reports all of these in a separate optional section and does **not** fail on
+them — most projects demo a terminal and will never record a GUI window. Use
+`tt-demo doctor --require-screen` when you do mean to, and `screen_capture.sh detect` for
+which backend actually works on this box.
+
+## A worked example
+
+`tt-bio-demo` records its protein-folding booth this way. Its
+`scripts/record-demo-video.sh` keeps the order of operations this file's `record` uses — OBS
+started *first* (so its startup dialog lands on an empty desktop rather than stealing focus
+from the demo), under `systemd-inhibit`, never `setsid` — then brings the app up fullscreen
+over the top and trims the dirty head by offset afterwards. It adds one app-specific check
+this generic backend can't: a screenshot precheck that refuses to continue if desktop chrome
+is still visible. Its `recordings/README.md` then runs `screen_capture.sh verify` on every
+recut before it ships.

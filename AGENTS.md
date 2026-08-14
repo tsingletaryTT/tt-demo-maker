@@ -198,6 +198,83 @@ render, verify PNG magic bytes, publish splice idempotence, rehearse reaction + 
 paths) — all hardware-free. Raw-hatch capture, compiled-driver execution, MP4 coverage, and
 server-stop/board-reset remain deferred (see below).
 
+### Screen capture: recording a GUI, August 13–14 2026
+
+Taylor needed demo footage of `tt-bio-demo`'s protein-folding booth — a fullscreen GTK/GL
+kiosk. Every backend in this toolkit drives tmux and asciinema, which only ever see a
+terminal, so none of them can photograph it at all. `lib/screen_capture.sh` +
+`docs/screen-capture.md` are the answer (bash-only; deliberately *not* a `tt-demo`
+subcommand yet — see the roadmap below).
+
+**The value here is the measurements, which are not guessable**, and each wrong turn cost an
+hour. On this KWin/Wayland box (Ubuntu 24.04): `ffmpeg -f x11grab` records **pure black at
+exit 0** — a real `.mp4`, one unique colour per frame; `wf-recorder` and `grim` are
+wlroots-only and refuse outright on KWin; `spectacle` works but is **stills-only** at 23.08.5
+(video landed in 24.02, which Ubuntu 24.04 does not package) and sustains ~5.9 fps;
+**OBS + PipeWire** is the right answer at 1920×1080 @ 60 fps with hardware encode. The caveat
+that eats the hour: OBS needs the xdg **ScreenCast portal** to grant a session, and a saved
+restore token is *not* sufficient from a detached or non-interactive process — the stream goes
+`paused` → `unconnected` and every frame is black. Hence `record` deliberately does not
+`setsid`.
+
+Three of those five fail by producing **a plausible file full of black**, the worst failure
+available: it looks like a working recording until someone plays it, which is usually after
+you shipped it. So every backend verifies itself before reporting success. Two follow-up
+fixes, each paid for in lost footage, and both the same lesson one level up — *it is not
+enough for a verifier to fail on the failure you imagined*:
+
+- **It sampled one frame at t=1s.** A recorder's first second is routinely black while it
+  starts and the compositor hands over the first buffer, so the verifier called a perfectly
+  good 136 s 1080p60 capture a BLANK CAPTURE — on the first video it was ever pointed at.
+  Now samples five points across the duration (six frames for a stills burst) and fails only
+  if *every* sample is blank.
+- **A lock screen passed every check we had.** 161 seconds of desktop wallpaper recorded at
+  2:23 am and verified as good, because the only question being asked was "is it black?" and
+  a mountain range at night emphatically is not. This is a question about the *world*, not
+  the pixels, which is why no amount of frame sampling would have caught it: `verify` now
+  refuses when `loginctl` reports `LockedHint=yes`, and `record` wraps the recorder in
+  `systemd-inhibit --what=idle:sleep` so the lock cannot arrive mid-take.
+
+**Downstream use**: `tt-bio-demo/scripts/record-demo-video.sh` keeps this order of operations
+(OBS first under `systemd-inhibit`, app raised fullscreen over its startup dialog, dirty head
+trimmed by offset) and adds an app-specific screenshot precheck for leftover desktop chrome;
+its `recordings/README.md` runs `screen_capture.sh verify` on every recut before shipping.
+
+**Docs + coverage pass, August 14 2026** (version 0.2.0 → 0.2.1). Taylor asked that the
+README and the other instruction surfaces catch up with screen capture, then — reading the
+gaps that pass surfaced — that the tests and `doctor` catch up too.
+
+Docs: the GUI section + requirements + layout + roadmap entries in `README.md`, a
+screen-capture section in `skill/SKILL.md`, an explicit "neither escape hatch records a GUI
+window" note in `skill/manifest-schema.md` (where `raw_tape` had been documented as being
+*for* GUI capture — it never could be; VHS records a terminal), and the two verifier fixes
+plus the `tt-bio-demo` worked example in `docs/screen-capture.md`.
+
+Writing them turned up that `docs/screen-capture.md`'s claim that the verifier "is tested in
+both directions" was not true of the repo — that testing had been done by hand and never
+committed. Closing that honestly is what produced the rest:
+
+- **`lib/tests/screen_capture_test.sh`** — the claim, made real. Fixtures are synthesised
+  with ffmpeg's lavfi sources so it needs no display: real content passes, synthetic black is
+  rejected *as a blank capture* (not merely rejected), a black first second does not condemn
+  an otherwise good take (asserted as 4/5 samples, so it stays a test of the tolerance rather
+  than quietly becoming a second happy-path check), stills bursts verify both ways, and a box
+  that cannot judge the frames refuses. Skips itself when ffmpeg or Pillow is absent, or when
+  the session is locked — that last one would otherwise mask every assertion, since `verify`
+  correctly refuses before it ever looks at a frame.
+- **A real bug, found by writing that last case.** `_frame_is_blank` exited 2 for "no Pillow",
+  the caller treated any non-zero as *not blank*, and so a box without Pillow waved every
+  capture through — all-black ones included — while still printing its reassuring OK line.
+  The verifier had a mode in which it could not fail, which is the exact trap the file's
+  header says it exists to prevent. Now three-valued (blank / content / cannot judge), fatal
+  on the third. The tally also moved out of a `$(...)` substitution: `die` inside one only
+  kills the subshell, so the scary message printed and the footage passed anyway.
+- **`tt-demo doctor` checks `obs`/`spectacle`/Pillow** in a separate optional section —
+  reported and recommended, never fatal, because most projects demo a terminal and putting
+  these in `REQUIRED` would fail `doctor` on every machine that will never record a GUI. A
+  unit test guards exactly that regression. `--require-screen` opts *in* to hard failure for
+  a scripted preflight that does mean to record one. 34 Rust tests pass (32 + 2 new).
+
 ---
 
 ## v1 Limitations / v1.1 Roadmap
@@ -219,6 +296,12 @@ kept in sync with README.md's "v1 limitations" section. (Delivered in v1.1: comp
   coverage — most CI runners lack a display server.
 - **Server stop / board reset on switch**: `Step::Switch` starts the next server and gates
   on readiness but never stops the prior server or runs a `tt-smi -r` board reset.
+- **Screen capture is not in the CLI or the manifest**: `lib/screen_capture.sh` is called
+  directly — there is no `tt-demo record` path to it and no scene shape for a GUI window.
+  (`doctor` does check `obs`/`spectacle`/Pillow via `doctor::SCREEN_CAPTURE`, advisory
+  unless `--require-screen`; the verifier is covered by
+  `lib/tests/screen_capture_test.sh`.) The capture backends themselves remain untestable
+  here: OBS needs a real graphical session and an interactively granted portal.
 
 ### v1 Known Behavior (Documented for v1.1 Clarity)
 

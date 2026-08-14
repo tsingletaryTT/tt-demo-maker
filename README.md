@@ -90,6 +90,12 @@ Full design: [`docs/superpowers/specs/2026-07-18-tt-demo-maker-design.md`](docs/
 - **Capture tools**, checked by `tt-demo doctor`: `tmux`, `asciinema`, `vhs`, `agg`,
   `ffmpeg`, and — only for MP4 rendering — `Xvfb` + `xterm`. You only need the tools for
   the engines and outputs your scenes actually use.
+- **Screen capture only** (the GUI path below): `obs` for video *or* `spectacle` for
+  stills, plus `python3` with Pillow for the blank-frame check, and `ffmpeg`/`ffprobe`.
+  `systemd-inhibit` and `loginctl` are used when present. `tt-demo doctor` reports these
+  but never fails on them — most projects demo a terminal and will never record a GUI
+  window. Pass `tt-demo doctor --require-screen` to make their absence an error, and
+  `lib/screen_capture.sh detect` to see which backend actually works on this box.
 
 ## Install
 
@@ -122,6 +128,48 @@ tt-demo post --narrate claude  # assemble demo/POST.draft.md (narration written 
 
 `tt-demo list` shows every scene's resolved engine (`vhs`/`asciinema`) and whether it's been
 recorded yet.
+
+## Recording a GUI app, not a terminal
+
+Everything above drives tmux and asciinema, which only ever see a terminal. For a graphical
+demo — a GTK/Qt/GL kiosk whose whole point is what it *draws* —
+[`lib/screen_capture.sh`](lib/screen_capture.sh) records the screen instead:
+
+```bash
+lib/screen_capture.sh detect                 # which backend works here, and why
+lib/screen_capture.sh record 120 out.mp4     # OBS + PipeWire, 1080p60
+lib/screen_capture.sh burst  120 frames/     # Spectacle stills, any compositor
+lib/screen_capture.sh verify out.mp4         # refuses to pass a black capture
+```
+
+This is a **bash-only backend**: it is not a `tt-demo` subcommand and has no manifest
+representation yet, so call it directly or from a project's own recording script.
+`tt-demo doctor` reports its tools in a separate optional section (`--require-screen` to
+make them mandatory), and `screen_capture.sh detect` says which backend works here and why.
+
+**The backend choice is measured, not assumed.** On a KWin/Wayland box, `ffmpeg -f x11grab`
+records *pure black at exit 0*; `wf-recorder` and `grim` are wlroots-only and refuse
+outright; Spectacle works but is stills-only at the version Ubuntu 24.04 packages (~5.9 fps);
+OBS + PipeWire is the real answer at 1920×1080 @ 60 fps.
+[`docs/screen-capture.md`](docs/screen-capture.md) has the full table and the xdg ScreenCast
+portal caveat that otherwise costs an hour — OBS's first run in a login session must have the
+screen-share dialog approved *interactively*, because a saved restore token is not sufficient
+from a detached process and the resulting file is black.
+
+**Every capture verifies itself**, because three of those backends fail by producing a
+plausible file full of black — the worst failure available, since it looks like a working
+recording until someone plays it. `verify` samples five points across the duration and fails
+only if *every* sample is a single colour (a recorder's first second is routinely black while
+the compositor hands over the first buffer, so judging the file on one early frame condemns
+good footage). It also refuses outright when `loginctl` reports the session locked — a lock
+screen photographs beautifully and passes every not-black check there is — and `record` wraps
+the recorder in `systemd-inhibit --what=idle:sleep` so the lock cannot arrive mid-take.
+
+**In use:** `tt-bio-demo` records its protein-folding booth through this path. Its
+`scripts/record-demo-video.sh` follows the same recipe `record` does (OBS started first with
+`systemd-inhibit`, never `setsid`, then the fullscreen app raised over it), adds an
+app-specific screenshot precheck for leftover desktop chrome, and its
+`recordings/README.md` runs `lib/screen_capture.sh verify` on every cut before it ships.
 
 ## Using the `/tt-demo` skill
 
@@ -157,28 +205,46 @@ demos safe to record on shared boxes and runnable in CI via `--dry-run`.
 bin/        Rust orchestrator (the tt-demo CLI): manifest parsing, scene
             compilation, record/compress/render/post subcommands
 lib/        bash capture primitives: tmux_capture.sh, split.sh, serve.sh,
-            render.sh, driver.sh
+            render.sh, verify.sh, driver.sh, and screen_capture.sh
+            (the GUI/screen backend — OBS or Spectacle, self-verifying)
 skill/      the /tt-demo Claude skill + manifest schema reference
 templates/  minijinja templates: VHS tape, asciinema driver, POST.draft.md
-themes/     VHS theme tapes (tt-brand, dracula)
+themes/     VHS theme tapes (tt-brand, dracula) + agg palettes (*.agg)
 examples/   the tt-toplike reference manifest
 tests/      hardware-free end-to-end golden test
-docs/       design spec and implementation plan
+docs/       design spec, implementation plans, and screen-capture.md
+            (measured GUI-recording findings for Wayland boxes)
 ```
 
 ## Testing
 
-The end-to-end golden test exercises the whole pipeline —
-init → record (real single-pane capture) → compress → render GIF → post —
-with no hardware and no network:
+Everything here is hardware-free and network-free:
 
 ```bash
-./tests/e2e_golden.sh
+(cd bin && cargo test)                  # manifest, compile, orchestrate, ready, doctor, ...
+bash lib/tests/capture_test.sh          # tmux capture -> cast -> GIF, through lib/
+bash lib/tests/driver_test.sh           # the asciinema driver helpers
+bash lib/tests/screen_capture_test.sh   # the blank-capture verifier, both directions
+./tests/e2e_golden.sh                   # the whole pipeline, end to end
 ```
 
-It builds the release binary if needed and runs everything in a throwaway temp directory.
+The golden test walks init → record (real single-pane capture) → compress → render GIF →
+post, building the release binary if needed and running everything in a throwaway temp
+directory.
+
+`screen_capture_test.sh` synthesises its fixtures with ffmpeg's lavfi sources, so it needs
+no display: real content must pass, synthetic black must be rejected, a black *first
+second* must not condemn an otherwise good take, and a box that can't judge the frames at
+all (no Pillow) must refuse rather than wave the footage through. It skips itself if ffmpeg
+or Pillow is missing, or if the session is locked.
 
 ## v1 limitations / v1.1
+
+**Added since v1.1** (born from recording the `tt-bio-demo` booth, which is a GUI):
+
+- `lib/screen_capture.sh` — GUI/screen capture (`detect`/`record`/`burst`/`verify`) with a
+  self-verifying blank-frame check and a locked-session refusal. See the GUI section above
+  and [`docs/screen-capture.md`](docs/screen-capture.md).
 
 **Delivered in v1.1** (born from recording the footage above by hand):
 
@@ -200,6 +266,12 @@ following remain deferred:
 
 - **Raw-hatch CLI capture.** `raw_tape`/`raw_script` scenes are recognized and skipped
   cleanly (no error) rather than executed — run VHS/asciinema on them by hand for now.
+- **Screen capture is not in the CLI or the manifest.** `lib/screen_capture.sh` is invoked
+  directly: there is no `tt-demo record` path to it and no scene shape for a GUI window.
+  (`tt-demo doctor` does now check its tools, and
+  `lib/tests/screen_capture_test.sh` covers the verifier — but the capture backends
+  themselves still can't be tested here, since OBS needs a real graphical session and an
+  interactively granted portal.)
 - **Compiled-tape/driver execution.** `compile_scene`'s rendered VHS tape / asciinema
   driver text (`Compiled.text`) is produced and validated (compile-time only) but never
   executed by `record`; real capture goes through `lib/tmux_capture.sh`/`lib/split.sh`
