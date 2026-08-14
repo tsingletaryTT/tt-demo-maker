@@ -46,16 +46,41 @@ have() { command -v "$1" >/dev/null 2>&1; }
 # --- is this frame/file actually anything? ---------------------------------
 # A single unique colour means the compositor handed us nothing. This is the
 # check that turns a silent failure into a loud one.
+#
+# Exit codes are three-valued on purpose: 0 blank, 1 has content, 2 CANNOT
+# JUDGE (no Pillow). The third is not the same as the second, and collapsing
+# them is how a verifier quietly stops verifying -- on a box without Pillow
+# every capture would be waved through, including the all-black one this file
+# exists to catch. cmd_verify treats 2 as fatal.
 _frame_is_blank() {  # _frame_is_blank <image>
   python3 - "$1" <<'PY'
 import sys
 try:
     from PIL import Image
 except ImportError:
-    sys.exit(2)                      # cannot judge; caller treats as unknown
+    sys.exit(2)                      # cannot judge -- NOT the same as "fine"
 im = Image.open(sys.argv[1]).convert("RGB")
 sys.exit(0 if len(set(im.getdata())) < 5 else 1)
 PY
+}
+
+# Tally one sampled frame into cmd_verify's `samples`/`blank` counters, and turn
+# "cannot judge" into a loud death instead of a silent pass. This writes to the
+# caller's locals rather than echoing a verdict on purpose: a `die` inside a
+# `$(...)` substitution only kills the subshell, so the script would print the
+# scary message and then carry on and pass the footage anyway.
+_tally_frame() {  # _tally_frame <image>   (mutates: samples, blank)
+  local rc=0
+  _frame_is_blank "$1" || rc=$?
+  samples=$(( samples + 1 ))
+  case "$rc" in
+    0) blank=$(( blank + 1 )) ;;
+    1) ;;
+    *) die "verify: cannot judge the frames -- python3 has no Pillow.
+  Without it nothing here can tell a real capture from an all-black one, so
+  this refuses rather than vouching for footage it never looked at.
+  Install it:  python3 -m pip install Pillow" ;;
+  esac
 }
 
 # Is the session locked? A lock screen records perfectly happily and passes any
@@ -89,8 +114,7 @@ cmd_verify() {  # cmd_verify <file.mp4|dir-of-pngs>
   if [ -d "$target" ]; then
     for frame in $(find "$target" -name '*.png' | sort | awk 'NR%7==2' | head -6); do
       cp "$frame" "$tmp/s.png"
-      samples=$(( samples + 1 ))
-      _frame_is_blank "$tmp/s.png" && blank=$(( blank + 1 ))
+      _tally_frame "$tmp/s.png"
     done
   else
     dur="$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$target" 2>/dev/null)"
@@ -100,8 +124,7 @@ cmd_verify() {  # cmd_verify <file.mp4|dir-of-pngs>
       ffmpeg -hide_banner -loglevel error -ss "$at" -i "$target" \
         -frames:v 1 -y "$tmp/s.png" 2>/dev/null || continue
       [ -s "$tmp/s.png" ] || continue
-      samples=$(( samples + 1 ))
-      _frame_is_blank "$tmp/s.png" && blank=$(( blank + 1 ))
+      _tally_frame "$tmp/s.png"
     done
   fi
 
