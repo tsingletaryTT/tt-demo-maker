@@ -24,7 +24,12 @@ struct Cli {
 #[derive(Subcommand)]
 enum Cmd {
     /// Preflight: check that required tools are installed.
-    Doctor,
+    Doctor {
+        /// Also hard-fail when the optional GUI/screen-capture path is unusable
+        /// (no obs/spectacle backend, or no Pillow to verify captures with).
+        #[arg(long)]
+        require_screen: bool,
+    },
     /// Idle-trim a raw asciicast.
     Compress {
         cast: std::path::PathBuf,
@@ -109,7 +114,7 @@ fn main() -> anyhow::Result<()> {
     }
 
     match Cli::parse().cmd {
-        Cmd::Doctor => doctor::run(),
+        Cmd::Doctor { require_screen } => doctor::run(require_screen),
         Cmd::Compress { cast, max_idle, out, stdout } => {
             compress::run(&cast, max_idle, out.as_deref(), stdout)
         }
