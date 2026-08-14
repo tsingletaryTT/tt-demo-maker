@@ -58,10 +58,27 @@ sys.exit(0 if len(set(im.getdata())) < 5 else 1)
 PY
 }
 
+# Is the session locked? A lock screen records perfectly happily and passes any
+# "is it black?" check, because a wallpaper has thousands of colours. This cost
+# a 161-second take of a mountain range at 2:23am.
+cmd_session_locked() {
+  local sid; sid="$(loginctl 2>/dev/null | awk '/'"$USER"'/{print $1; exit}')"
+  [ -n "$sid" ] || return 1
+  loginctl show-session "$sid" -p LockedHint 2>/dev/null | grep -q 'LockedHint=yes'
+}
+
 cmd_verify() {  # cmd_verify <file.mp4|dir-of-pngs>
   local target="$1" tmp frame
   [ -e "$target" ] || die "verify: no such path: $target"
   tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' RETURN
+
+  if cmd_session_locked; then
+    die "verify: THE SESSION IS LOCKED.
+  Whatever was captured is the lock screen, not your application. A lock
+  screen passes every not-black check there is. Unlock, then re-record --
+  and wrap the recorder in 'systemd-inhibit --what=idle:sleep' so the lock
+  cannot arrive mid-take."
+  fi
 
   # Sample SEVERAL points, not one. A recorder's first second is routinely
   # black while it starts up and the compositor hands over the first buffer --
@@ -145,7 +162,11 @@ cmd_record() {  # cmd_record <seconds> <out.mp4> [fps]
 
   # NOT setsid: the ScreenCast portal associates the request with the calling
   # graphical session, and a detached process loses it.
-  obs --startrecording --minimize-to-tray >/dev/null 2>&1 &
+  # Inhibit idle/lock for the length of the take. Without this the screen can
+  # lock mid-recording and the rest of the file is wallpaper.
+  local inhibit=""
+  have systemd-inhibit && inhibit="systemd-inhibit --what=idle:sleep --why=tt-demo-recording"
+  $inhibit obs --startrecording --minimize-to-tray >/dev/null 2>&1 &
   local pid=$!
   sleep $(( secs + 12 ))                 # +12s covers OBS start and portal
   kill -INT "$pid" 2>/dev/null || true
