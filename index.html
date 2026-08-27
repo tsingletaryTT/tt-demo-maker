@@ -319,7 +319,7 @@
     <code>rehearse → record → compress → render → verify → publish</code> flow.
   </p>
   <div class="player-wrap">
-    <div class="player-label">demo/assets/ouroboros.min.cast — tt-demo record short-burst, filmed from outside</div>
+    <div class="player-label">media/casts/ouroboros.cast — tt-demo record short-burst, filmed from outside</div>
     <div id="player-ouroboros"></div>
   </div>
 
@@ -328,7 +328,7 @@
     The asciicast behind the starfield GIF above, played back live rather than as a looping GIF:
   </p>
   <div class="player-wrap">
-    <div class="player-label">demo/assets/short-burst.min.cast</div>
+    <div class="player-label">media/casts/short-burst.cast</div>
     <div id="player-short-burst"></div>
   </div>
 </section>
@@ -503,11 +503,11 @@ tt-demo post --narrate claude  # assemble demo/POST.draft.md</code></pre>
     terminalFontSize: '14px',
   };
 
-  AsciinemaPlayer.create('demo/assets/ouroboros.min.cast', document.getElementById('player-ouroboros'),
+  AsciinemaPlayer.create('media/casts/ouroboros.cast', document.getElementById('player-ouroboros'),
     { ...opts, cols: 168, rows: 42, title: 'Ouroboros — tt-demo recording tt-demo',
       poster: 'npt:0:10', preload: true });
 
-  AsciinemaPlayer.create('demo/assets/short-burst.min.cast', document.getElementById('player-short-burst'),
+  AsciinemaPlayer.create('media/casts/short-burst.cast', document.getElementById('player-short-burst'),
     { ...opts, cols: 168, rows: 42, title: 'Short burst — starfield',
       poster: 'npt:0:04', preload: true });
 </script>
