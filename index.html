@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>tt-demo-maker — Demo Recordings, Automated</title>
+
+<link rel="stylesheet" href="assets/asciinema-player.css">
+<script src="assets/asciinema-player.min.js"></script>
+
+<style>
+  :root {
+    --bg:        #0F2A35;
+    --bg-card:   #1A3C47;
+    --bg-raise:  #1f4455;
+    --teal:      #4FD1C5;
+    --teal-lt:   #81E6D9;
+    --pink:      #EC96B8;
+    --yellow:    #F4C471;
+    --green:     #27AE60;
+    --red:       #FF6B6B;
+    --text:      #E8F0F2;
+    --muted:     #8FAAB8;
+    --border:    #2a5060;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+    font-size: 17px;
+    line-height: 1.7;
+  }
+
+  .wrap { max-width: 900px; margin: 0 auto; padding: 0 1.5rem; }
+
+  /* ── Hero ── */
+  .hero { padding: 5rem 0 4rem; text-align: center; border-bottom: 1px solid var(--border); }
+  .hero-eyebrow {
+    font-size: 0.85rem; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--teal); margin-bottom: 1.2rem;
+  }
+  .hero h1 {
+    font-size: clamp(2rem, 5vw, 3rem); font-weight: 700; line-height: 1.2; margin-bottom: 1.5rem;
+    background: linear-gradient(135deg, var(--teal-lt), var(--teal), var(--pink));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .hero-sub { font-size: 1.1rem; color: var(--muted); max-width: 640px; margin: 0 auto 2rem; }
+  .hero-meta {
+    font-size: 0.85rem; color: var(--muted); display: flex;
+    justify-content: center; gap: 2rem; flex-wrap: wrap;
+  }
+  .hero-meta span::before { content: "· "; color: var(--teal); }
+
+  .stage-nav { display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: center; padding: 2rem 0; }
+  .stage-nav a {
+    display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.4rem 1rem;
+    border-radius: 999px; border: 1px solid var(--border); color: var(--muted);
+    text-decoration: none; font-size: 0.85rem; transition: all 0.15s;
+  }
+  .stage-nav a:hover { border-color: var(--teal); color: var(--teal); background: rgba(79,209,197,0.07); }
+  .stage-nav a .num {
+    display: inline-flex; align-items: center; justify-content: center; width: 1.3rem; height: 1.3rem;
+    border-radius: 50%; background: var(--bg-card); font-size: 0.75rem; font-weight: 700;
+    color: var(--teal); border: 1px solid var(--border);
+  }
+
+  .section { padding: 4rem 0; border-bottom: 1px solid var(--border); }
+  .section:last-child { border-bottom: none; }
+
+  .stage-badge {
+    display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase; color: var(--teal); margin-bottom: 0.8rem;
+  }
+  .stage-badge .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--teal); display: inline-block; }
+  .stage-badge.pink   { color: var(--pink);   } .stage-badge.pink   .dot { background: var(--pink); }
+  .stage-badge.yellow { color: var(--yellow); } .stage-badge.yellow .dot { background: var(--yellow); }
+  .stage-badge.red    { color: var(--red);    } .stage-badge.red    .dot { background: var(--red); }
+  .stage-badge.green  { color: var(--green);  } .stage-badge.green  .dot { background: var(--green); }
+  .stage-badge.muted  { color: var(--muted);  } .stage-badge.muted  .dot { background: var(--muted); }
+
+  h2 { font-size: 1.9rem; font-weight: 700; line-height: 1.25; margin-bottom: 1.25rem; color: var(--text); }
+  h3 { font-size: 1.2rem; font-weight: 600; color: var(--teal-lt); margin: 2rem 0 0.6rem; }
+  p { margin-bottom: 1.1rem; color: var(--muted); }
+  p strong { color: var(--text); }
+  a { color: var(--teal); }
+
+  code {
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace; font-size: 0.88em;
+    background: var(--bg-raise); border: 1px solid var(--border); border-radius: 4px;
+    padding: 0.15em 0.4em; color: var(--teal-lt);
+  }
+  pre {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px;
+    padding: 1.2rem 1.4rem; overflow-x: auto; margin: 1.5rem 0;
+  }
+  pre code { background: none; border: none; padding: 0; font-size: 0.9rem; color: var(--text); }
+
+  .arch-table { width: 100%; border-collapse: collapse; margin: 1.5rem 0; font-size: 0.95rem; }
+  .arch-table th {
+    text-align: left; padding: 0.6rem 1rem; border-bottom: 2px solid var(--border);
+    color: var(--teal); font-weight: 600; font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  .arch-table td { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); color: var(--muted); vertical-align: top; }
+  .arch-table td:first-child { color: var(--text); font-weight: 600; white-space: nowrap; }
+  .arch-table tr:last-child td { border-bottom: none; }
+  .arch-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+  .callout {
+    border-left: 3px solid var(--teal); background: var(--bg-card); border-radius: 0 8px 8px 0;
+    padding: 1rem 1.25rem; margin: 1.5rem 0;
+  }
+  .callout.warn { border-color: var(--yellow); }
+  .callout p { margin-bottom: 0; }
+  .callout p + p { margin-top: 0.5rem; }
+
+  .flow {
+    font-family: monospace; font-size: 0.85rem; color: var(--muted); background: var(--bg-card);
+    border: 1px solid var(--border); border-radius: 8px; padding: 1.2rem 1.4rem; margin: 1.5rem 0;
+    overflow-x: auto; white-space: pre;
+  }
+  .flow strong { color: var(--teal-lt); }
+
+  .player-wrap {
+    margin: 2rem 0; border-radius: 10px; overflow: hidden; border: 1px solid var(--border);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  .player-label {
+    background: var(--bg-card); border-bottom: 1px solid var(--border); padding: 0.5rem 1rem;
+    font-size: 0.8rem; font-family: monospace; color: var(--muted);
+    display: flex; align-items: center; gap: 0.5rem;
+  }
+  .player-label::before { content: "▶"; color: var(--teal); font-size: 0.7rem; }
+  .asciinema-player-wrapper { background: var(--bg) !important; }
+
+  .gif-frame img { display: block; width: 100%; height: auto; }
+
+  /* ── Gallery grid ── */
+  .gallery-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 1.5rem; margin: 1.5rem 0;
+  }
+  .gallery-card {
+    border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+    background: var(--bg-card); box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  .gallery-card img { display: block; width: 100%; height: auto; }
+  .gallery-caption { padding: 0.9rem 1.1rem; font-size: 0.88rem; color: var(--muted); }
+  .gallery-caption strong { color: var(--text); }
+
+  /* ── Precursor strip ── */
+  .precursor-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1.25rem; margin: 1.5rem 0;
+  }
+  .precursor-card {
+    border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--bg-card);
+  }
+  .precursor-card img { display: block; width: 100%; height: 160px; object-fit: cover; object-position: top; }
+  .precursor-meta { padding: 0.75rem 0.9rem; }
+  .precursor-meta .proj { font-family: monospace; font-size: 0.82rem; color: var(--teal-lt); }
+  .precursor-meta .tool {
+    font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .precursor-meta p { margin: 0.4rem 0 0; font-size: 0.85rem; }
+
+  .filepath {
+    display: inline-flex; align-items: center; gap: 0.3rem; font-family: monospace; font-size: 0.82rem;
+    color: var(--yellow); background: rgba(244,196,113,0.1); border: 1px solid rgba(244,196,113,0.25);
+    border-radius: 4px; padding: 0.1em 0.5em;
+  }
+
+  footer { padding: 3rem 0; text-align: center; color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--border); }
+  footer a { color: var(--teal); }
+
+  .topnav {
+    position: sticky; top: 0; z-index: 100; background: rgba(15, 42, 53, 0.93);
+    border-bottom: 1px solid var(--border); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  }
+  .topnav-inner { display: flex; align-items: center; gap: 1.5rem; padding-top: 0.7rem; padding-bottom: 0.7rem; }
+  .topnav-brand { font-weight: 700; font-size: 0.95rem; color: var(--teal); white-space: nowrap; flex-shrink: 0; text-decoration: none; }
+  .topnav-links { display: flex; gap: 1.25rem; flex-wrap: wrap; flex: 1; }
+  .topnav-links a { font-size: 0.85rem; color: var(--muted); text-decoration: none; transition: color 0.15s; }
+  .topnav-links a:hover { color: var(--teal); }
+  .topnav-github {
+    flex-shrink: 0; display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.9rem;
+    border-radius: 6px; background: var(--teal); color: var(--bg) !important; font-size: 0.82rem;
+    font-weight: 700; text-decoration: none; transition: background 0.15s;
+  }
+  .topnav-github:hover { background: var(--teal-lt); }
+
+  @media (max-width: 600px) {
+    .hero { padding: 3rem 0 2.5rem; }
+    h2 { font-size: 1.5rem; }
+    .arch-table { font-size: 0.85rem; }
+    .arch-table th, .arch-table td { padding: 0.5rem 0.6rem; }
+    .topnav-links { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Navbar ────────────────────────────────────────────────── -->
+<nav class="topnav">
+  <div class="wrap topnav-inner">
+    <a class="topnav-brand" href="#">tt-demo-maker</a>
+    <div class="topnav-links">
+      <a href="#how">How it works</a>
+      <a href="#gallery">Gallery</a>
+      <a href="#manifest">Manifest</a>
+      <a href="#wild">Used in the wild</a>
+      <a href="#precursors">Precursors</a>
+      <a href="#quickstart">Quickstart</a>
+    </div>
+    <a class="topnav-github" href="README.md">Read the docs</a>
+  </div>
+</nav>
+
+<div class="wrap">
+<section class="hero">
+  <p class="hero-eyebrow">Tenstorrent · demo tooling</p>
+  <h1>tt-demo-maker</h1>
+  <p class="hero-sub">
+    A reusable toolkit for turning a running TUI/CLI into recorded footage — asciicast, GIF,
+    MP4 — and a first-draft post pairing each directive with the reaction it caused.
+    Point it at your project, describe the scenes, and it does the terminal ballet.
+  </p>
+  <div class="hero-meta">
+    <span>Rust CLI</span>
+    <span>tmux · asciinema · VHS · ffmpeg · agg</span>
+    <span>Claude skill</span>
+    <span>Apache-2.0</span>
+  </div>
+</section>
+
+<nav class="stage-nav">
+  <a href="#how"><span class="num">1</span> How it works</a>
+  <a href="#gallery"><span class="num">2</span> Gallery</a>
+  <a href="#manifest"><span class="num">3</span> Manifest</a>
+  <a href="#wild"><span class="num">4</span> In the wild</a>
+  <a href="#precursors"><span class="num">5</span> Precursors</a>
+  <a href="#quickstart"><span class="num">6</span> Quickstart</a>
+</nav>
+
+<!-- ── How it works ─────────────────────────────────────────── -->
+<section class="section" id="how">
+  <div class="stage-badge"><span class="dot"></span> Overview</div>
+  <h2>Describe scenes, get footage and a draft post</h2>
+
+  <p>
+    You describe scenes in a small YAML manifest — <span class="filepath">demo/demos.yaml</span> —
+    and the toolkit records them: split-pane terminal captures via tmux, encoded through
+    asciinema or VHS, rendered to themed GIF/MP4, idle-trimmed, and verified before they ship.
+    A companion Claude skill can author and edit that manifest from a plain-English request.
+  </p>
+
+  <div class="flow">description ──▶ <strong>/tt-demo skill</strong>
+                 │  authors/edits demo/demos.yaml, writes narration
+                 ▼
+            <strong>bin/tt-demo</strong>  (Rust orchestrator — the stable interface)
+                 │  parse+validate manifest, compile scenes, drive flow
+                 ▼
+            <strong>lib/*.sh</strong>     (bash capture primitives — the terminal ballet)
+                 │  spawn: tmux · asciinema · vhs · Xvfb · xterm · ffmpeg · agg
+                 ▼
+            demo/assets/*  +  demo/POST.draft.md</div>
+
+  <p>
+    A parallel path exists for GUI apps that draw to a window instead of a terminal:
+    <span class="filepath">lib/screen_capture.sh</span> records the screen via OBS or Spectacle,
+    and refuses to pass a black or locked-screen capture — three of its backends fail by
+    producing a plausible file that's entirely one color, the worst kind of failure because it
+    looks like a working recording until someone plays it back.
+  </p>
+</section>
+
+<!-- ── Gallery ──────────────────────────────────────────────── -->
+<section class="section" id="gallery">
+  <div class="stage-badge pink"><span class="dot"></span> Dogfood</div>
+  <h2>tt-demo-maker recording itself</h2>
+
+  <p>
+    Three scenes recorded by this toolkit on real hardware — a QuietBox with 4× P300C
+    (Blackhole) boards — from this repo's own <span class="filepath">demo/demos.yaml</span>.
+    In each, the left pane runs a real <code>ttnn</code> matmul burst on device 0
+    (<span class="filepath">demo/tt-burst.sh</span>) and the right pane is
+    <code>tt-toplike --backend hybrid</code> watching live board telemetry.
+  </p>
+
+  <div class="gallery-grid">
+    <div class="gallery-card">
+      <img src="media/short-burst.gif" alt="Short matmul burst reflected in the starfield visualization" loading="lazy">
+      <div class="gallery-caption">
+        <strong>A short burst (starfield)</strong> — a five-second matmul burst on device 0:
+        clocks jump 800→1350 MHz, power spikes toward 140 W, the starfield flares, then settles.
+      </div>
+    </div>
+    <div class="gallery-card">
+      <img src="media/sustained-load.gif" alt="Sustained matmul load driving the arcade visualization" loading="lazy">
+      <div class="gallery-caption">
+        <strong>Sustained load (arcade)</strong> — nine seconds of sustained matmuls; the arcade
+        hero climbs as device 0 ramps from ~16 W idle toward ~140 W.
+      </div>
+    </div>
+    <div class="gallery-card">
+      <img src="media/power-collapse.gif" alt="Power collapsing back to idle in the live telemetry table" loading="lazy">
+      <div class="gallery-caption">
+        <strong>Load ends, power collapses (table)</strong> — when the burst stops, device 0
+        falls from ~120 W back to idle and clocks drop back to 800 MHz.
+      </div>
+    </div>
+  </div>
+
+  <h3>Ouroboros — tt-demo recording tt-demo</h3>
+  <p>
+    Footage of the tool recording the footage above, end-to-end through the
+    <code>rehearse → record → compress → render → verify → publish</code> flow.
+  </p>
+  <div class="player-wrap">
+    <div class="player-label">demo/assets/ouroboros.min.cast — tt-demo record short-burst, filmed from outside</div>
+    <div id="player-ouroboros"></div>
+  </div>
+
+  <h3>Scrub the raw recording</h3>
+  <p>
+    The asciicast behind the starfield GIF above, played back live rather than as a looping GIF:
+  </p>
+  <div class="player-wrap">
+    <div class="player-label">demo/assets/short-burst.min.cast</div>
+    <div id="player-short-burst"></div>
+  </div>
+</section>
+
+<!-- ── Manifest ─────────────────────────────────────────────── -->
+<section class="section" id="manifest">
+  <div class="stage-badge yellow"><span class="dot"></span> Manifest</div>
+  <h2>One scene, in YAML</h2>
+
+  <p>
+    Each scene names a layout, the command(s) that run in each pane, a duration, and a caption.
+    This is the <code>cold-load</code> scene from the reference example
+    (<span class="filepath">examples/demos.yaml</span>):
+  </p>
+
+  <pre><code>project: tt-toplike
+theme: tt-brand
+defaults: { cols: 200, rows: 50, backend: "--host", outputs: [cast, gif] }
+scenes:
+  - id: cold-load
+    title: "Cold model load (host proxy)"
+    layout: split
+    left:  { run: "yes > /dev/null &amp; sleep 6; kill %1" }
+    right: { run: "tt-toplike {backend} --mode arcade" }
+    duration: 8s
+    split_ratio: 40
+    caption: "Load ramps the host; the arcade hero climbs as power rises."</code></pre>
+
+  <p>
+    The full field reference lives in <span class="filepath">skill/manifest-schema.md</span>.
+  </p>
+</section>
+
+<!-- ── Used in the wild ─────────────────────────────────────── -->
+<section class="section" id="wild">
+  <div class="stage-badge green"><span class="dot"></span> Used in the wild</div>
+  <h2>tt-bio-demo — the GUI screen-capture path</h2>
+
+  <p>
+    Not every demo is a terminal. <strong>tt-bio-demo</strong> is a protein-folding booth —
+    a graphical app whose whole point is what it draws — so it records through
+    <span class="filepath">lib/screen_capture.sh</span> instead of the tmux/asciinema path:
+    OBS started under <code>systemd-inhibit</code>, verified against a black-frame check before
+    any cut ships.
+  </p>
+
+  <div class="gallery-grid">
+    <div class="gallery-card">
+      <img src="media/tt-bio-demo/booth-loop.gif" alt="The booth folding proteins on Tenstorrent Blackhole" loading="lazy">
+      <div class="gallery-caption">
+        <strong>The booth folding proteins on Tenstorrent Blackhole</strong> — live diffusion,
+        captured via the screen-capture backend and verified before shipping.
+      </div>
+    </div>
+    <div class="gallery-card">
+      <img src="media/tt-bio-demo/quad-four-chips.png" alt="The quad view: four chips, four proteins" loading="lazy">
+      <div class="gallery-caption">
+        <strong>The quad view</strong> — four chips, four proteins, folding side by side.
+      </div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <p>
+      <strong>From its own docs:</strong> <span class="filepath">recordings/README.md</span> runs
+      <code>lib/screen_capture.sh verify</code> on every cut before it ships — the same
+      not-black, not-locked-screen check described above.
+    </p>
+  </div>
+</section>
+
+<!-- ── Precursors ───────────────────────────────────────────── -->
+<section class="section" id="precursors">
+  <div class="stage-badge muted"><span class="dot"></span> Precursors</div>
+  <h2>Before the tool existed, projects rolled their own</h2>
+
+  <p>
+    tt-demo-maker exists because several projects had already built — and rebuilt — the same
+    tmux + asciinema/VHS machinery by hand. A few of those hand-rolled recordings, predating
+    this toolkit:
+  </p>
+
+  <div class="precursor-grid">
+    <div class="precursor-card">
+      <img src="media/precursors/tt-forge-compiletron.gif" alt="tt-forge-compiletron demo recording" loading="lazy">
+      <div class="precursor-meta">
+        <div class="proj">tt-forge-compiletron</div>
+        <div class="tool">asciinema · own player page</div>
+        <p>Hand-rolled asciinema capture with its own bespoke <code>docs/index.html</code> player.</p>
+      </div>
+    </div>
+    <div class="precursor-card">
+      <img src="media/precursors/tt-toplike-arcade.gif" alt="tt-toplike arcade mode demo" loading="lazy">
+      <div class="precursor-meta">
+        <div class="proj">tt-toplike</div>
+        <div class="tool">asciinema · 12-cast gallery</div>
+        <p>A twelve-scene asciinema gallery — tt-toplike itself is the telemetry visualizer this toolkit's demos lean on.</p>
+      </div>
+    </div>
+    <div class="precursor-card">
+      <img src="media/precursors/tt-animatediff-bringup.gif" alt="tt-animatediff bringup demo" loading="lazy">
+      <div class="precursor-meta">
+        <div class="proj">tt-animatediff</div>
+        <div class="tool">asciinema + VHS</div>
+        <p>A typing-simulated asciinema driver alongside its own VHS tapes for bringup footage.</p>
+      </div>
+    </div>
+    <div class="precursor-card">
+      <img src="media/precursors/tt-vscode-toolkit-ttsim.gif" alt="tt-vscode-toolkit ttsim demo" loading="lazy">
+      <div class="precursor-meta">
+        <div class="proj">tt-vscode-toolkit</div>
+        <div class="tool">VHS</div>
+        <p>A VHS tape rendering a highlight reel, already styled in this same dark teal theme.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <p>
+      <strong>Further afield:</strong> <code>qb2-guide</code> built an entire onboarding site
+      off thirteen separate VHS tapes, and <code>cosmoetape</code> extends VHS's own tape format
+      with GUI commands (<code>Launch</code>/<code>WaitApp</code>/<code>Focus</code>/<code>Quit</code>)
+      rather than just using it — a sibling tool rather than a precursor.
+    </p>
+  </div>
+</section>
+
+<!-- ── Quickstart ───────────────────────────────────────────── -->
+<section class="section" id="quickstart">
+  <div class="stage-badge"><span class="dot"></span> Try it</div>
+  <h2>Quickstart</h2>
+
+  <pre><code>./install.sh                   # build tt-demo, symlink it and the Claude skill
+
+tt-demo doctor                 # check for tmux, asciinema, vhs, agg, ffmpeg, Xvfb, xterm
+tt-demo init                   # scaffold demo/demos.yaml, demo/assets/, demo/.gitignore
+$EDITOR demo/demos.yaml        # describe your scenes
+tt-demo record --dry-run       # validate + print the capture plan; touches no hardware
+tt-demo rehearse &lt;id&gt;         # preflight: does the directive move real telemetry?
+tt-demo record all             # capture every scene
+tt-demo compress demo/assets/&lt;id&gt;.cast   # idle-trim -&gt; &lt;id&gt;.min.cast
+tt-demo render &lt;id&gt; --gif      # (or --mp4) themed + tuned via defaults.render
+tt-demo verify &lt;id&gt;            # contact-sheet PNG of the rendered footage
+tt-demo publish all --readme README.md   # copy artifacts + splice the gallery
+tt-demo post --narrate claude  # assemble demo/POST.draft.md</code></pre>
+
+  <p>
+    Everything here is hardware-free and network-free to test:
+    <code>(cd bin && cargo test)</code>, <code>./tests/e2e_golden.sh</code> walks the whole
+    pipeline end to end in a throwaway directory. See <span class="filepath">README.md</span>
+    for the full requirements, repository layout, and current v1.1 limitations.
+  </p>
+</section>
+
+</div><!-- /wrap -->
+
+<footer>
+  <div class="wrap">
+    <p>
+      <strong>tt-demo-maker</strong> — Apache-2.0. Demo assets on this page belong to their
+      respective projects (tt-demo-maker, tt-bio-demo, tt-forge-compiletron, tt-toplike,
+      tt-animatediff, tt-vscode-toolkit) and are reproduced here to show the tooling in use.
+    </p>
+  </div>
+</footer>
+
+<script>
+  const opts = {
+    theme: 'monokai',
+    fit: 'width',
+    terminalFontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+    terminalFontSize: '14px',
+  };
+
+  AsciinemaPlayer.create('demo/assets/ouroboros.min.cast', document.getElementById('player-ouroboros'),
+    { ...opts, cols: 168, rows: 42, title: 'Ouroboros — tt-demo recording tt-demo',
+      poster: 'npt:0:10', preload: true });
+
+  AsciinemaPlayer.create('demo/assets/short-burst.min.cast', document.getElementById('player-short-burst'),
+    { ...opts, cols: 168, rows: 42, title: 'Short burst — starfield',
+      poster: 'npt:0:04', preload: true });
+</script>
+
+</body>
+</html>
