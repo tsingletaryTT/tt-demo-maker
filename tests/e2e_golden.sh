@@ -145,4 +145,25 @@ if PATH="$PWD/stubbin:$PATH" "$TT_DEMO" rehearse rehearse-quiet --min-delta 20 -
   echo "rehearse-quiet should have failed under --require-reaction" >&2; exit 1
 fi
 
+# raw_tape CLI capture: `tt-demo record` now actually shells out to `vhs` for a
+# raw-hatch scene (previously it printed "not yet CLI-captured" and skipped).
+# Minimal tape, hardware-free, ~2s to record.
+mkdir -p raw
+cat > raw/marker.tape <<'TAPE'
+Output demo/assets/raw-marker.gif
+Set Width 400
+Set Height 200
+Type "echo RAW_TAPE_OK"
+Enter
+Sleep 500ms
+TAPE
+cat >> demo/demos.yaml <<YAML
+  - id: raw-marker
+    title: "Raw VHS tape"
+    raw_tape: raw/marker.tape
+    caption: "A hand-written VHS tape, captured through the CLI."
+YAML
+"$TT_DEMO" record raw-marker
+[[ -s demo/assets/raw-marker.gif ]]
+
 echo "E2E GOLDEN PASSED"

@@ -261,11 +261,21 @@ or Pillow is missing, or if the session is locked.
   and emit/splice a markdown gallery (between `<!-- tt-demo:gallery:begin/end -->` markers).
 
 `tt-demo record` (non-dry-run) drives declarative (`left`/`right`) scenes straight through
-the tested `lib/*.sh` capture primitives, using each scene's raw `run:` commands. The
-following remain deferred:
+the tested `lib/*.sh` capture primitives, using each scene's raw `run:` commands.
 
-- **Raw-hatch CLI capture.** `raw_tape`/`raw_script` scenes are recognized and skipped
-  cleanly (no error) rather than executed — run VHS/asciinema on them by hand for now.
+**Delivered in 0.2.2** (born from wrapping a guide's hand-written VHS tapes as `raw_tape`
+scenes and finding `record` still just printed and skipped them):
+
+- **Raw-hatch CLI capture.** `tt-demo record <id>` now actually runs `vhs <tape>` for a
+  `raw_tape` scene, or `asciinema rec <id>.cast --command "bash <script>"` for a
+  `raw_script` scene, instead of printing "not yet CLI-captured" and skipping. A raw_tape's
+  own `Output` line still decides where its artifact lands (not rewritten) — `record` just
+  reports whether the conventional `demo/assets/<id>.{gif,mp4}` path showed up afterward, so
+  a tape that doesn't follow convention fails loudly at `verify`/`publish` time rather than
+  silently. Covered by a new `e2e_golden.sh` case (a 2-second marker tape, hardware-free).
+
+The following remain deferred:
+
 - **Screen capture is not in the CLI or the manifest.** `lib/screen_capture.sh` is invoked
   directly: there is no `tt-demo record` path to it and no scene shape for a GUI window.
   (`tt-demo doctor` does now check its tools, and

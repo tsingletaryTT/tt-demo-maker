@@ -111,9 +111,7 @@ pub fn run(ids: Option<Vec<String>>, dry_run: bool) -> anyhow::Result<()> {
                 // scenes), and a raw scene by construction never has one (the manifest
                 // validator rejects a scene that sets both a raw hatch and declarative
                 // panes) — calling it here would `bail!` on every raw scene, in dry-run
-                // included. CLI capture of raw scenes is deferred to v1.1 (see
-                // README/AGENTS "v1 limitations"); this path only prints and skips, never
-                // errors, matching the manifest's own contract that raw is a valid shape.
+                // included.
                 if s.is_raw() {
                     println!("== record {scene} [raw]");
                     if dry_run {
@@ -121,8 +119,64 @@ pub fn run(ids: Option<Vec<String>>, dry_run: bool) -> anyhow::Result<()> {
                         std::fs::write(format!("demo/assets/{scene}.cast"), "{\"version\":2}\n[0.0,\"o\",\"[dry-run]\"]\n").ok();
                         continue;
                     }
-                    println!("   raw scenes not yet CLI-captured (v1.1) — run vhs/asciinema manually for `{scene}`");
-                    continue;
+
+                    if let Some(tape) = &s.raw_tape {
+                        // VHS writes wherever the tape's own `Output` line points — not
+                        // necessarily demo/assets/<id>.*. We don't parse/rewrite that line
+                        // (it's the tape author's call); we just run the tape from the
+                        // current directory (matching how `vhs <tape>` was always invoked
+                        // by hand) and tell the user whether the conventional artifact
+                        // path showed up, so a tape that doesn't follow convention fails
+                        // loudly at `verify`/`publish` time instead of silently.
+                        which::which("vhs").context(
+                            "`vhs` not found on PATH — required to record raw_tape scenes",
+                        )?;
+                        let status = std::process::Command::new("vhs")
+                            .arg(tape)
+                            .status()
+                            .with_context(|| format!("spawning vhs for scene `{scene}` (tape {tape})"))?;
+                        if !status.success() {
+                            anyhow::bail!(
+                                "vhs failed for scene `{scene}` (exit {})",
+                                status.code().map(|c| c.to_string()).unwrap_or_else(|| "signal".into())
+                            );
+                        }
+                        let assets_dir = PathBuf::from("demo/assets");
+                        match crate::verify::artifact_for(scene, &assets_dir) {
+                            Some(p) => println!("recorded {}", p.display()),
+                            None => println!(
+                                "   vhs exited 0, but no demo/assets/{scene}.{{gif,mp4}} appeared — \
+                                 check the tape's `Output` line matches that convention"
+                            ),
+                        }
+                        continue;
+                    }
+
+                    if let Some(script) = &s.raw_script {
+                        which::which("asciinema").context(
+                            "`asciinema` not found on PATH — required to record raw_script scenes",
+                        )?;
+                        std::fs::create_dir_all("demo/assets").context("creating demo/assets")?;
+                        let out = format!("demo/assets/{scene}.cast");
+                        let status = std::process::Command::new("asciinema")
+                            .arg("rec")
+                            .arg(&out)
+                            .arg("--overwrite")
+                            .arg("--command")
+                            .arg(format!("bash {script}"))
+                            .status()
+                            .with_context(|| format!("spawning asciinema for scene `{scene}` (script {script})"))?;
+                        if !status.success() {
+                            anyhow::bail!(
+                                "asciinema failed for scene `{scene}` (exit {})",
+                                status.code().map(|c| c.to_string()).unwrap_or_else(|| "signal".into())
+                            );
+                        }
+                        println!("recorded {out}");
+                        continue;
+                    }
+
+                    unreachable!("Scene::is_raw() guarantees raw_tape or raw_script is set");
                 }
 
                 let compiled = compile::compile_scene(s, &m, &tmpl)?;

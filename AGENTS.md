@@ -275,6 +275,32 @@ committed. Closing that honestly is what produced the rest:
   unit test guards exactly that regression. `--require-screen` opts *in* to hard failure for
   a scripted preflight that does mean to record one. 34 Rust tests pass (32 + 2 new).
 
+### Raw-hatch CLI capture wired up, September 7 2026 (0.2.1 → 0.2.2)
+
+Found while migrating `tt-quietbox2-guide`'s 14 hand-written VHS tapes onto `tt-demo`:
+wrapping them as `raw_tape` scenes was straightforward, but `tt-demo record <id>` still just
+printed `"raw scenes not yet CLI-captured (v1.1) — run vhs/asciinema manually"` and skipped —
+the exact deferred item this file and README already documented, just not yet closed.
+
+`record.rs`'s raw-scene branch now actually executes:
+- `raw_tape` → `vhs <tape>` (the tape's own `Output` line decides where the artifact lands;
+  not rewritten). Afterward, `verify::artifact_for` checks whether the conventional
+  `demo/assets/<id>.{gif,mp4}` path showed up and says so either way, so a tape that doesn't
+  follow that convention fails loudly at the next `verify`/`publish` step instead of silently.
+- `raw_script` → `asciinema rec demo/assets/<id>.cast --overwrite --command "bash <script>"`,
+  matching the same `asciinema rec ... --command` idiom `split.sh`/`tmux_capture.sh` already
+  use for declarative scenes.
+
+Both paths check the tool (`vhs`/`asciinema`) is on PATH via `which` first, matching
+`doctor`'s existing dependency list, rather than surfacing a bare "command not found" from
+the subprocess spawn.
+
+`tests/e2e_golden.sh` gained a case: a 2-second, hand-written marker tape
+(`echo RAW_TAPE_OK`) recorded through the real `tt-demo record raw-marker` CLI path,
+asserting `demo/assets/raw-marker.gif` exists afterward — hardware-free, ~2s. All 34 existing
+Rust unit tests plus the full golden script still pass. README's "v1 limitations" and this
+file's "Deferred Features" no longer list raw-hatch capture.
+
 ---
 
 ## v1 Limitations / v1.1 Roadmap
@@ -286,8 +312,6 @@ kept in sync with README.md's "v1 limitations" section. (Delivered in v1.1: comp
 
 ### Deferred Features
 
-- **Raw-hatch CLI capture**: `raw_tape`/`raw_script` scenes are recognized and skipped
-  cleanly (no error) — VHS/asciinema must be run by hand for these escape hatches.
 - **Compiled-tape/driver execution**: The VHS tape and asciinema driver text are produced
   and validated at compile time but never executed by `record`; real capture uses raw
   `lib/*.sh` scripts instead. The compiled driver's shell quoting is also not yet
