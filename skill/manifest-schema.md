@@ -112,6 +112,30 @@ graphical app has no representation in this manifest at all. Record those with
 `lib/screen_capture.sh` directly (OBS or Spectacle, self-verifying against black captures) —
 see `docs/screen-capture.md`.
 
+**`raw_tape` authoring gotchas** (found migrating `tt-quietbox2-guide`'s 14 hand-written
+tapes, September 2026 — real footage bugs `vhs validate` does not catch):
+
+- **Avoid em-dashes ("—") in `Type` strings.** VHS occasionally drops or corrupts an adjacent
+  character — a leading `#`, a quote mark — when typing one, producing broken shell syntax
+  that only shows up in the recorded output, never at validate time. Use a plain hyphen.
+- **A `Type "..."` string needing literal embedded double quotes should use backtick
+  quoting** (`` Type `...` ``, Go raw-string style), not backslash-escaping — escaped nested
+  quotes fail to parse (`Invalid command: )`/`\`/`'` errors).
+- **If a tape enters a container** (e.g. `Hide` / `Type "docker run -it <image> bash"` /
+  `Show`) **and the image activates its environment via a login-shell mechanism**
+  (`/etc/profile.d/*.sh`), use `bash -l` — plain `bash` is a non-login interactive shell and
+  never sources those scripts, so commands run directly at the prompt silently miss the
+  intended PATH/venv. A wrapper invoked with its own `-c` (already setting its own PATH
+  internally) is unaffected either way.
+- **A device-opening call inside the recorded session locks hardware exclusively** — passing
+  a whole device directory (e.g. `--device /dev/tenstorrent`) into the container lets it
+  collide with a concurrent session's own lease on a different chip and crash with a
+  driver-level stack trace. Scope `--device` to only the specific device nodes for chips you
+  actually hold when the tape's commands will open a device, not just read telemetry.
+- **Always `tt-demo verify <id>` and read the contact sheet before publishing** — none of the
+  above surfaces as a record-time error; the take completes "successfully" with visibly wrong
+  or crashed output baked into the GIF.
+
 ## Compact example
 
 ```yaml

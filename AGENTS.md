@@ -301,6 +301,29 @@ asserting `demo/assets/raw-marker.gif` exists afterward — hardware-free, ~2s. 
 Rust unit tests plus the full golden script still pass. README's "v1 limitations" and this
 file's "Deferred Features" no longer list raw-hatch capture.
 
+### `raw_tape` footage bugs found re-recording `tt-quietbox2-guide`, September 9 2026 (docs only)
+
+Re-recording 6 stale `raw_tape` scenes on real hardware (via the raw-hatch CLI capture wired
+up above) surfaced three real bugs that `vhs validate` never catches, because they only show
+up in the recorded footage itself, not the tape's syntax:
+
+- VHS's `Type` occasionally corrupts a character adjacent to an em-dash ("—") — a leading
+  `#` or a quote mark dropped, turning a comment or `echo` into broken shell syntax.
+- A `Type "..."` string needing literal embedded double quotes silently fails to parse with
+  backslash-escaping; backtick quoting (`` Type `...` ``, Go raw-string style — already used
+  elsewhere in that project's tapes) works.
+- A tape entering a container via `Hide`/`docker run -it <image> bash`/`Show`, where the
+  image activates tooling through a login-shell mechanism, needs `bash -l` — plain `bash` is
+  non-login and never sources `/etc/profile.d/*.sh`. Separately, a tape whose commands
+  actually open a device (not just read telemetry) needs `--device` scoped to the specific
+  leased nodes, or it can collide with another session's concurrent lease and crash.
+
+No code changed here — all four are footage-only correctness issues, not `tt-demo` bugs.
+Documented as `raw_tape` authoring gotchas in `skill/manifest-schema.md` so the next tape
+author (human or agent) doesn't rediscover them by watching a contact sheet fail. This is
+also the concrete case for why `tt-demo verify`'s contact sheet exists: every one of these
+recorded "successfully" (no CLI error) with visibly wrong output baked into the GIF.
+
 ---
 
 ## v1 Limitations / v1.1 Roadmap
