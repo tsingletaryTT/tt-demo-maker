@@ -48,6 +48,41 @@ Three things that will otherwise waste an hour or a whole take:
 
 Background and the measured backend comparison: `docs/screen-capture.md`.
 
+## Recording a QEMU/libvirt guest booting (the QB2 image)
+The user may say: *"capture the QB2 fresh image booting on qemu end to end; I'll drive and tell
+you when to stop."* That is `lib/qb2_capture.sh`. It polls the guest's own framebuffer
+(`virsh screenshot`) from the very first firmware frame and builds an mp4 with real timing — no
+OBS, no portal, no dependence on a viewer window or on the host session being unlocked.
+
+1. **Confirm the one destructive choice.** `begin --fresh` overwrites the live disk
+   (~163 GB) with the pristine snapshot; `--as-is` boots whatever is there. "Fresh image"
+   means `--fresh`. The default pristine is the big one (tt-installer done, Qwen3-32B cache,
+   ~130 GB, slow to restore); `--pristine tt-qb2-one-accelerator-pristine-gdm-only.qcow2` is
+   the small one. If the user didn't say which, ask — it's minutes vs. seconds.
+2. `lib/qb2_capture.sh begin --fresh [--pristine FILE]` — restores the disk, starts the grabber
+   (it waits for frame 0), then runs `sudo qb2-vm-up.sh --open-remote`, which takes the **gozer
+   lease** (queues if the chips are busy; the grabber just keeps waiting) and opens
+   remote-viewer. It returns immediately. Tell the user it's recording and that they drive.
+   Needs passwordless `sudo`; if not, have the user run `! sudo -v` first.
+3. **The user drives.** Do not touch the guest. `lib/qb2_capture.sh status` shows live frame
+   counts if they ask.
+4. When they say stop: `lib/qb2_capture.sh end [--down]`. It stops the grabber, verifies the
+   frames, builds `boot.mp4`, and verifies the mp4 itself. `--down` powers off and releases the
+   lease; without it the guest keeps running and **still holds the chips** — say so, and ask
+   before leaving it that way.
+5. Read `summary.txt` in the take dir to the user *before* calling it good, and look at the
+   result (`tt-demo`-style: extract a few frames with ffmpeg and Read them). Two things must be
+   reported honestly: the achieved screenshot rate (a few fps — fine for boot text, choppy for
+   animation) and that **the mouse pointer is not in the footage** (SPICE draws it
+   client-side). If the demo is pointer-driven, say so and offer `screen_capture.sh` on the
+   viewer window instead. `summary.txt` also flags a take that began on an already-running
+   guest as *not* end-to-end.
+
+Take dirs land in `demo/assets/qb2-boot-<timestamp>/` (gitignored). Primitive for any libvirt
+domain: `lib/qemu_capture.sh {start|stop|status|build|verify}`. Not exercised against the real
+QB2 domain by `lib/tests/qemu_capture_test.sh` (stub `virsh`) — the first real run's `verify`
+is the check that `virsh screenshot` returns good frames there.
+
 ## Notes
 - Non-invasive by default: prefer `--backend hybrid`/`--host` in scene commands.
 - A local Qwen (`--narrate local`) can write narration when you are not in the loop.

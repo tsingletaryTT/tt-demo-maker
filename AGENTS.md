@@ -326,6 +326,90 @@ recorded "successfully" (no CLI error) with visibly wrong output baked into the 
 
 ---
 
+### QEMU/libvirt guest boot capture, October 1 2026 (0.2.2 → 0.2.3)
+
+Taylor asked whether the repo could record a running QEMU session the way VHS records a
+terminal (answer: no QEMU tooling existed; the serial-console case already worked via
+tmux/asciinema, the graphical case did not), then for "everything we'd need to say": *"Claude,
+capture the following demo sequence with the qb2 fresh image on qemu end-to-end. I'll drive
+the demo itself and tell you when to stop recording."* Context came from
+`~/tt-home/tt-qb2-image-maker/` — the QB2 guest is a **libvirt** domain (`qemu:///system`, SPICE,
+SeaBIOS, VFIO-passed-through chips), started by `qb2-vm-up.sh`, which daemonises and holds the
+gozer lease.
+
+**Decision: poll the guest framebuffer (`virsh screenshot`), not the host screen.** It needs no
+OBS/portal grant, doesn't care about the Wayland/`x11grab` traps in `docs/screen-capture.md`,
+works whether or not a viewer window exists or the session is locked, and — because it can be
+started *before* `virsh start` — sees the firmware and bootloader screens that attaching a
+viewer afterwards misses. Cost, stated in the script header and `summary.txt`: **no mouse
+pointer** (SPICE draws it client-side) and only a few fps.
+
+- **`lib/qemu_capture.sh`** — generic libvirt-domain primitive: detached grabber that waits for
+  `running`, md5-dedupes frames, ends itself when the guest powers off; `build` makes an
+  ffconcat from the *real* capture timestamps (a 3 s GRUB menu lasts 3 s) and fits the
+  mixed-size frames (720×400 text → 1024×768 GDM) onto one canvas.
+- **`lib/qb2_capture.sh`** — `begin (--fresh|--as-is)` / `status` / `end [--down]`. The mode
+  flag is required with no default: `--fresh` wipes the live disk. Refuses unless the domain
+  is `shut off` (so "end to end" is true), and never touches `/dev/tenstorrent` itself —
+  `qb2-vm-up.sh` owns the lease.
+- **Verification** (same lesson as screen capture: *a verifier must fail on failures you didn't
+  imagine*): fails on all-single-colour samples **and** on a capture with <2 distinct frames
+  (a boot is not a still), judges the final mp4 as well as its inputs, and treats missing
+  Pillow as fatal rather than a pass.
+- **`lib/tests/qemu_capture_test.sh`** — stub `virsh`, no VM/libvirt/chip. Mutation-tested:
+  disabling the blank check, the timing, the wait-for-running guard, and the still-image check
+  each turned it red. **The mutation pass found a real hole** — with the blank check disabled
+  the suite stayed green, because the all-black case is *also* caught by the one-distinct-frame
+  check, masking the dead one. Fixed with a `flicker` stub mode (distinct solid colours).
+  Running the suite also caught two genuine script bugs before any real use: `printf %q`
+  stored `shut\ off`, falsely flagging good takes "not end-to-end"; and a `trap ... RETURN`
+  that outlives its function and dies on an unbound local under `set -u`.
+- **Not verified against the real domain.** The VM is shut off and a real run wipes a 163 GB
+  disk and takes a gozer lease, so `qb2_capture.sh` was exercised only against fake
+  image-maker scripts + the stub `virsh`. Untested on real hardware: that `virsh screenshot`
+  works on the SPICE/SeaBIOS domain, the achieved fps, and whether `sudo --preserve-env`
+  (for `--open-remote`'s window) is permitted by this box's sudoers.
+
+**Same day, first real runs (October 1 2026)** — what the stub could not tell us:
+- **The grabber killed itself mid-demo.** `virsh domstate | head -1 || echo gone` under
+  `pipefail` races (head closes the pipe, virsh SIGPIPEs, the fallback *appends* `gone` to a
+  state that was really `running`), so a live guest read as "powered off". Fixed with
+  `domstate_of` (capture, then trim, no pipe), plus `start --resume`, which records a `gap`
+  line so `build` cuts across missing time instead of freezing a frame over it. The first
+  regression test for the race passed against the buggy code (noise from the first poll just
+  looks like "still waiting"); mutation-testing caught that and it was rewritten to turn the
+  noise on only after the grabber had started.
+- **ffmpeg's concat demuxer mangles long still holds.** A real boot has 27–32 s holds (GRUB,
+  login). For a true 97.6 s capture the encode gave 117.6 s / 70.9 s / 72.8 s depending on
+  flags; only `fps=N` filter + `-fps_mode cfr` gave 97.6 s. Synthetic tests with sub-second
+  holds could not see it; `case 3d` now builds a take directly with 20–25 s holds.
+- **Editing a running bash script is unsafe** (bash reads by offset). Edited a copy and
+  `mv`'d it over the running grabber's file.
+- **Gozer queueing dominates wall time.** The first test boot's "443 s to first frame" was
+  ~380 s queued behind another lease and ~60 s of VFIO memory pinning (the first
+  `virsh screenshot` blocks while the domain is `paused (starting up)`), not slow booting.
+- **Real-hardware numbers**: ~5 screenshots/s, 1280×800 once GDM is up (640×480 at GRUB,
+  720×400-ish text earlier), domain-running → login screen ≈ 106 s on the NVMe. Not a clean
+  A/B against the HDD (that run was abandoned), so "faster" is indicative, not measured.
+- **The image moved** from the spinning USB HDD (`/mnt/bonus`, ~43 MB/s) to the NVMe at
+  `/var/lib/libvirt/images/tt-qb2-vm` after freeing ~190 GB of unused HF models; pristines
+  stay on the HDD (`TT_QB2_PRISTINE_DIR`). The pre-move HDD copy was deleted once the NVMe
+  copy had been verified and booted. `lib/qb2_capture.sh`'s default `IMAGE_DIR` follows.
+- **Why the recordings showed scrolling systemd text instead of the Tenstorrent boot
+  animation** (Taylor asked): the factory autoinstall's first-boot cloud-init `runcmd` is
+  meant to select the `tt-greeter` Plymouth theme, rebuild the initramfs and add
+  `quiet splash`; under QEMU it fails (`Runparts: 1 failures (runcmd)`) and is never retried,
+  so the theme was installed but never selected. Fixed offline on the live disk and both
+  pristines with `tt-qb2-image-maker/qb2-fix-boot-splash.sh` (has a read-only `--check`; the
+  checker was validated on both a fixed and an unfixed disk). A recording of the fixed live
+  disk shows SeaBIOS -> kernel -> animation -> GDM; the `gdm-only` pristine was boot-tested via
+  a throwaway qcow2 overlay (no writes to the pristine). **The big pristine was NOT boot-tested**
+  (Taylor chose to skip it); its on-disk state was verified by the script, nothing more.
+- **Disk tuning** (`cache=none io=native discard=unmap` + 1 iothread on the virtio disk) is
+  applied and live in QEMU's command line, but made **no measurable difference to guest
+  boot** (first frame -> login was 46 s before and after; one sample each). It may matter for
+  disk-heavy work such as model loading, which was not tested.
+
 ## v1 Limitations / v1.1 Roadmap
 
 This section documents known limitations and features still deferred after v1.1,
@@ -343,6 +427,8 @@ kept in sync with README.md's "v1 limitations" section. (Delivered in v1.1: comp
   coverage — most CI runners lack a display server.
 - **Server stop / board reset on switch**: `Step::Switch` starts the next server and gates
   on readiness but never stops the prior server or runs a `tt-smi -r` board reset.
+- **QEMU boot capture is not in the CLI or the manifest either**: `lib/qemu_capture.sh` /
+  `lib/qb2_capture.sh` are called directly (see the October 1 2026 entry).
 - **Screen capture is not in the CLI or the manifest**: `lib/screen_capture.sh` is called
   directly — there is no `tt-demo record` path to it and no scene shape for a GUI window.
   (`doctor` does check `obs`/`spectacle`/Pillow via `doctor::SCREEN_CAPTURE`, advisory

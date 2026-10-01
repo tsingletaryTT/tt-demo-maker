@@ -96,6 +96,11 @@ Full design: [`docs/superpowers/specs/2026-07-18-tt-demo-maker-design.md`](docs/
   but never fails on them — most projects demo a terminal and will never record a GUI
   window. Pass `tt-demo doctor --require-screen` to make their absence an error, and
   `lib/screen_capture.sh detect` to see which backend actually works on this box.
+- **QEMU/libvirt guest capture** (`lib/qemu_capture.sh`, `lib/qb2_capture.sh`): `virsh`,
+  `ffmpeg`/`ffprobe`, `python3` + Pillow. Records a guest's own framebuffer from the first
+  firmware frame, so it needs no OBS/portal and no viewer window; it cannot show the mouse
+  pointer. The QB2 front door is `lib/qb2_capture.sh begin --fresh` … `end`; see the QEMU
+  section of `skill/SKILL.md`.
 - **Layout verification with no live session** (recommended for checking a GTK/Qt/GL app's
   layout at a given window size, e.g. during a responsive-design change): `weston`
   (`apt install weston`), run headless — see
