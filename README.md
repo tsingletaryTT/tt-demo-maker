@@ -96,6 +96,12 @@ Full design: [`docs/superpowers/specs/2026-07-18-tt-demo-maker-design.md`](docs/
   but never fails on them — most projects demo a terminal and will never record a GUI
   window. Pass `tt-demo doctor --require-screen` to make their absence an error, and
   `lib/screen_capture.sh detect` to see which backend actually works on this box.
+- **Layout verification with no live session** (recommended for checking a GTK/Qt/GL app's
+  layout at a given window size, e.g. during a responsive-design change): `weston`
+  (`apt install weston`), run headless — see
+  [`docs/screen-capture.md`'s "Headless verification"](docs/screen-capture.md#headless-verification-no-live-session-at-all)
+  section for the exact recipe and the two flags that are load-bearing but not obvious
+  (`--renderer=pixman`, `--debug`).
 
 ## Install
 
