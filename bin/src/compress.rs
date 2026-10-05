@@ -1,6 +1,27 @@
 //! Idle-trim an asciicast v2 recording (native replacement for compress_cast.py).
 use anyhow::Context;
 
+/// One recorded event: time, code ("o"/"i"/...), data.
+type Event = (f64, String, serde_json::Value);
+
+/// Drops the end-of-capture tail that tmux appends when the recorded program
+/// exits: a final `[exited]` line, and the screen clear (`ESC[2J`) tmux draws
+/// just before it. Left in, the last frame of a looped clip is a blank screen
+/// reading `[exited]`. Only a trailing `[exited]` event is acted on; a cast
+/// that never contains one is returned untouched, and the clear is only
+/// dropped when it directly precedes that line.
+fn strip_exit_tail(events: &mut Vec<Event>) {
+    let is_exited = |e: &Event| e.2.as_str().is_some_and(|d| d.trim() == "[exited]");
+    if !events.last().is_some_and(is_exited) {
+        return;
+    }
+    events.pop();
+    let clears = |e: &Event| e.2.as_str().is_some_and(|d| d.contains("\u{1b}[2J"));
+    if events.last().is_some_and(clears) {
+        events.pop();
+    }
+}
+
 pub fn trim(input: &str, max_idle: f64) -> anyhow::Result<String> {
     let mut lines = input.lines();
     let header = lines.next().context("empty cast (no header)")?;
@@ -9,6 +30,7 @@ pub fn trim(input: &str, max_idle: f64) -> anyhow::Result<String> {
     out.push('\n');
     let mut prev_orig = 0.0_f64;
     let mut shift = 0.0_f64; // total time removed so far
+    let mut events: Vec<Event> = Vec::new();
     for line in lines {
         if line.trim().is_empty() { continue; }
         let ev: serde_json::Value = serde_json::from_str(line)
@@ -18,9 +40,13 @@ pub fn trim(input: &str, max_idle: f64) -> anyhow::Result<String> {
         if gap > max_idle { shift += gap - max_idle; }
         prev_orig = t;
         let new_t = t - shift;
-        let code = ev.get(1).and_then(|v| v.as_str()).unwrap_or("o");
+        let code = ev.get(1).and_then(|v| v.as_str()).unwrap_or("o").to_string();
         let data = ev.get(2).cloned().unwrap_or(serde_json::Value::String(String::new()));
-        out.push_str(&serde_json::to_string(&serde_json::json!([new_t, code, data]))?);
+        events.push((new_t, code, data));
+    }
+    strip_exit_tail(&mut events);
+    for (t, code, data) in events {
+        out.push_str(&serde_json::to_string(&serde_json::json!([t, code, data]))?);
         out.push('\n');
     }
     Ok(out)
@@ -96,5 +122,39 @@ mod tests {
     #[test]
     fn default_out_rejects_non_cast_extension() {
         assert!(default_out(std::path::Path::new("demo/assets/foo.gif")).is_err());
+    }
+
+    fn data_of(cast: &str) -> Vec<String> {
+        cast.lines().skip(1)
+            .map(|l| serde_json::from_str::<serde_json::Value>(l).unwrap()[2].as_str().unwrap().to_string())
+            .collect()
+    }
+
+    #[test]
+    fn drops_the_trailing_exited_line_and_the_clear_before_it() {
+        let cast = "{\"version\":2,\"width\":80,\"height\":24}\n\
+            [0.1,\"o\",\"frame\"]\n\
+            [0.2,\"o\",\"\\u001b[H\\u001b[2J\"]\n\
+            [0.2,\"o\",\"[exited]\\r\\n\"]\n";
+        let out = trim(cast, 0.5).unwrap();
+        assert_eq!(data_of(&out), vec!["frame"]);
+    }
+
+    #[test]
+    fn keeps_a_screen_clear_that_is_not_followed_by_exited() {
+        let cast = "{\"version\":2,\"width\":80,\"height\":24}\n\
+            [0.1,\"o\",\"\\u001b[2J\"]\n\
+            [0.2,\"o\",\"frame\"]\n";
+        let out = trim(cast, 0.5).unwrap();
+        assert_eq!(data_of(&out).len(), 2);
+    }
+
+    #[test]
+    fn keeps_exited_text_in_the_middle_of_a_cast() {
+        let cast = "{\"version\":2,\"width\":80,\"height\":24}\n\
+            [0.1,\"o\",\"[exited]\"]\n\
+            [0.2,\"o\",\"frame\"]\n";
+        let out = trim(cast, 0.5).unwrap();
+        assert_eq!(data_of(&out), vec!["[exited]", "frame"]);
     }
 }
