@@ -79,10 +79,14 @@ pub fn run(id: &str, gif: bool, mp4: bool) -> anyhow::Result<()> {
             );
         }
         println!("== render {id} -> {which} ({})", out.display());
+        // An older cast may still end on tmux's `[exited]` frame; render from a
+        // cleaned temp copy so it does not, and leave the file itself alone.
+        let cleaned = crate::compress::cleaned_copy(&cast)?;
+        let input = cleaned.as_ref().unwrap_or(&cast);
         let status = std::process::Command::new("bash")
             .arg(&script)
             .arg(which)
-            .arg(&cast)
+            .arg(input)
             .arg(&out)
             .envs(env.iter().map(|(k, v)| (k.as_str(), v.as_str())))
             .status()
@@ -92,6 +96,9 @@ pub fn run(id: &str, gif: bool, mp4: bool) -> anyhow::Result<()> {
                 "render.sh {which} failed for scene `{id}` (exit {})",
                 status.code().map(|c| c.to_string()).unwrap_or_else(|| "signal".into())
             );
+        }
+        if let Some(tmp) = &cleaned {
+            std::fs::remove_file(tmp).ok();
         }
         println!("wrote {}", out.display());
     }

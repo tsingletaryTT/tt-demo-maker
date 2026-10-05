@@ -172,6 +172,9 @@ pub fn run(ids: Option<Vec<String>>, dry_run: bool) -> anyhow::Result<()> {
                                 status.code().map(|c| c.to_string()).unwrap_or_else(|| "signal".into())
                             );
                         }
+                        if crate::compress::strip_exit_tail_file(std::path::Path::new(&out))? {
+                            println!("   dropped the trailing [exited] frame");
+                        }
                         println!("recorded {out}");
                         continue;
                     }
@@ -243,6 +246,11 @@ pub fn run(ids: Option<Vec<String>>, dry_run: bool) -> anyhow::Result<()> {
                         "capture failed for scene `{scene}` (exit {})",
                         status.code().map(|c| c.to_string()).unwrap_or_else(|| "signal".into())
                     );
+                }
+                // tmux prints `[exited]` when the captured program ends; drop it so
+                // a looped clip does not finish on that frame.
+                if crate::compress::strip_exit_tail_file(&out)? {
+                    println!("   dropped the trailing [exited] frame");
                 }
                 println!("recorded {}", out.display());
             }
