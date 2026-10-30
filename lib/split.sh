@@ -37,13 +37,19 @@
 set -euo pipefail
 OUT="$1"; COLS="$2"; ROWS="$3"; RATIO="$4"; LEFT="$5"; RIGHT="$6"; DUR="$7"
 SESSION="ttsplit_$$"
-tmux kill-session -t "$SESSION" 2>/dev/null || true
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# See tmux_capture.sh / tmux-record.conf: a dedicated socket + isolated config
+# keeps the host's own ~/.tmux.conf (status bar, session name, clock) out of
+# the recording. -f alone isn't enough once a server is already up on the
+# default socket.
+TMUX_SOCK=(-L ttdemo-rec -f "$SCRIPT_DIR/tmux-record.conf")
+tmux "${TMUX_SOCK[@]}" kill-session -t "$SESSION" 2>/dev/null || true
 mkdir -p "$(dirname "$OUT")"
 
 RUNDIR="$(mktemp -d)"
 cleanup() {
-  tmux send-keys -t "$SESSION" q 2>/dev/null || true
-  tmux kill-session -t "$SESSION" 2>/dev/null || true
+  tmux "${TMUX_SOCK[@]}" send-keys -t "$SESSION" q 2>/dev/null || true
+  tmux "${TMUX_SOCK[@]}" kill-session -t "$SESSION" 2>/dev/null || true
   rm -rf "$RUNDIR"
 }
 trap cleanup EXIT
@@ -54,6 +60,8 @@ trap cleanup EXIT
 # command as given.
 {
   printf '#!/usr/bin/env bash\n'
+  # See tmux_capture.sh: force a known-blank pane before anything else runs.
+  printf 'tput reset 2>/dev/null || clear 2>/dev/null || true\n'
   printf '%s\n' "$LEFT"
   printf 'sleep %q\n' "$DUR"
 } > "$RUNDIR/left.sh"
@@ -61,17 +69,18 @@ chmod +x "$RUNDIR/left.sh"
 
 {
   printf '#!/usr/bin/env bash\n'
+  printf 'tput reset 2>/dev/null || clear 2>/dev/null || true\n'
   printf '%s\n' "$RIGHT"
 } > "$RUNDIR/right.sh"
 chmod +x "$RUNDIR/right.sh"
 
-tmux new-session -d -x "$COLS" -y "$ROWS" -s "$SESSION" bash "$RUNDIR/right.sh"        # right pane = viz
-tmux split-window -h -b -t "$SESSION" -l "${RATIO}%" bash "$RUNDIR/left.sh"            # left = directive (-b inserts before/left of target)
+tmux "${TMUX_SOCK[@]}" new-session -d -x "$COLS" -y "$ROWS" -s "$SESSION" bash "$RUNDIR/right.sh"        # right pane = viz
+tmux "${TMUX_SOCK[@]}" split-window -h -b -t "$SESSION" -l "${RATIO}%" bash "$RUNDIR/left.sh"            # left = directive (-b inserts before/left of target)
 sleep 1
 asciinema rec "$OUT" --overwrite --cols "$COLS" --rows "$ROWS" \
-  --command "tmux attach -t $SESSION" &
+  --command "tmux -L ttdemo-rec -f $(printf '%q' "$SCRIPT_DIR/tmux-record.conf") attach -t $SESSION" &
 REC=$!
 sleep "$DUR"
-tmux send-keys -t "$SESSION" q 2>/dev/null || true
-tmux kill-session -t "$SESSION" 2>/dev/null || true
+tmux "${TMUX_SOCK[@]}" send-keys -t "$SESSION" q 2>/dev/null || true
+tmux "${TMUX_SOCK[@]}" kill-session -t "$SESSION" 2>/dev/null || true
 wait "$REC" 2>/dev/null || true

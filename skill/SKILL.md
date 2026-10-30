@@ -78,6 +78,28 @@ OBS, no portal, no dependence on a viewer window or on the host session being un
    viewer window instead. `summary.txt` also flags a take that began on an already-running
    guest as *not* end-to-end.
 
+### Variant: the user records on another machine (their Mac)
+If the user says they will view/record from their Mac (or any other machine), do NOT run the
+frame grabber — its screenshots are encoded on QEMU's main loop and can hitch a live remote
+view. Instead:
+1. `lib/qb2_capture.sh begin --as-is|--fresh --no-capture` — starts the VM only (no grabber, no
+   take dir, no local viewer), waits for the display, and prints the exact SPICE port (it is
+   auto-assigned) plus the commands for the other machine.
+2. The user runs `lib/qb2_view_remote.sh <user@host> [port]` on the Mac (they must copy the
+   script over; it is bash-3.2 safe). **Order relative to step 1 does not matter**: the helper never
+   starts the VM, it WAITS over ssh until the guest is `running`, learns the SPICE port from
+   libvirt, then opens the `ssh -L` tunnel and `remote-viewer`. Starting it first catches the
+   firmware/GRUB/animation screens; starting it later joins a session in progress. (`remote-viewer`
+   has no retry/reconnect option — 11.0 says "Unknown option --reconnect" — which is why the
+   waiting lives in the helper.) They record that window locally (Cmd+Shift+5 / QuickTime /
+   OBS): this gets the **mouse pointer and up to 60 fps**, which the grabber cannot.
+3. When they're done: `lib/qb2_capture.sh down` (power off, unbind, release the lease).
+Be upfront that the Mac-side path is **untested against a real SPICE session or on macOS**, only
+the tunnel plumbing is tested (`lib/tests/qb2_view_remote_test.sh`), and that `remote-viewer` is
+not in Homebrew's main repo as far as is known (a third-party tap, or fall back to a VNC
+listener + macOS Screen Sharing). The VM's SPICE image compression is `off`: fine on wired
+gigabit, poor over Wi-Fi/VPN. Ask what link they are on.
+
 Take dirs land in `demo/assets/qb2-boot-<timestamp>/` (gitignored). Primitive for any libvirt
 domain: `lib/qemu_capture.sh {start|stop|status|build|verify}`. Not exercised against the real
 QB2 domain by `lib/tests/qemu_capture_test.sh` (stub `virsh`) — the first real run's `verify`

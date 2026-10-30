@@ -100,7 +100,8 @@ Full design: [`docs/superpowers/specs/2026-07-18-tt-demo-maker-design.md`](docs/
   `ffmpeg`/`ffprobe`, `python3` + Pillow. Records a guest's own framebuffer from the first
   firmware frame, so it needs no OBS/portal and no viewer window; it cannot show the mouse
   pointer. The QB2 front door is `lib/qb2_capture.sh begin --fresh` … `end`; see the QEMU
-  section of `skill/SKILL.md`.
+  section of `skill/SKILL.md`. To record on another machine instead (pointer + up to 60 fps),
+  use `begin --no-capture` here and `lib/qb2_view_remote.sh` there (SPICE over an ssh tunnel).
 - **Layout verification with no live session** (recommended for checking a GTK/Qt/GL app's
   layout at a given window size, e.g. during a responsive-design change): `weston`
   (`apt install weston`), run headless — see

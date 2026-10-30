@@ -410,6 +410,46 @@ pointer** (SPICE draws it client-side) and only a few fps.
   boot** (first frame -> login was 46 s before and after; one sample each). It may matter for
   disk-heavy work such as model loading, which was not tested.
 
+### Recording a QEMU guest from another machine, October 1 2026 (0.2.3 → 0.2.4)
+
+Taylor asked whether the viewer could run on a Mac (ssh access to the quietbox, same wired LAN)
+and be recorded there. Two reasons the grabber is the wrong tool for that: it can't show the
+pointer, and its measured rate is low. **Measured, not guessed** (ticks.log across three real
+takes): ~135-143 ms per `virsh screenshot` at <=1280x800 (~7/s, *independent of resolution*),
+but ~340 ms at 1680x1050 (~2.9/s) — the viewer window had resized the guest desktop. A bare
+`virsh` call costs 5 ms, so the earlier explanation ("process spawn + file write") was wrong and a
+persistent libvirt connection would gain nothing. The fixed ~135 ms is inside the screenshot call
+itself; the resolution-dependent part is QEMU's PNG encode.
+
+- **`lib/qb2_view_remote.sh`** (runs on the *viewing* machine, bash 3.2-safe): `ssh -L` tunnel to
+  the VM's loopback-only SPICE port + `remote-viewer`. It never starts the VM; it WAITS over
+  ssh (one control-master login, polling `virsh domstate` on the box) until the guest is
+  `running`, reads the auto-assigned port from `virsh domdisplay`, then opens the forward and the
+  viewer — so ordering against `begin --no-capture` is not a race. Falls back to the given/5900
+  port, without waiting, if the box can't be queried. Closes exactly its own tunnel via the
+  control socket (`-O exit`), not `pkill`/`pgrep -f`.
+- **A claim I shipped without checking, and the test that couldn't catch it.** The first version
+  launched `remote-viewer --reconnect` ("documented retry flag" in the script and the docs).
+  remote-viewer 11.0 has no such option (`Unknown option --reconnect`, exit 1), so it would have
+  failed on launch. The test passed anyway because its stub viewer ignored its arguments. Found
+  when Taylor asked whether starting the helper before the VM was a race. Fixed by moving the
+  waiting into the helper; the stub viewer is now strict (exactly one `spice://` URI, else exit 1
+  like the real one) and the suite was mutation-tested with the bad flag put back (red).
+- **`qb2_capture.sh begin --no-capture`** (VM only: no grabber, no take dir, no local viewer;
+  waits for the display and prints the auto-assigned SPICE port) and **`down`**.
+- **`lib/tests/qb2_view_remote_test.sh`** — real ssh to localhost, a dummy server standing in for
+  SPICE, a stub viewer. Asserts bytes round-trip *through the tunnel*, the tunnel is gone and no
+  control dir is left afterwards, a busy local port is refused, a missing viewer is a clear
+  error. Mutation-tested (no teardown / wrong forward port / no busy check each go red).
+  Writing it hit two traps from the global CLAUDE.md in one session: `ls -d /tmp/x.* | wc -l`
+  under `pipefail` aborted before anything ran, and a cleanup `pkill -f '<pattern>'` killed the
+  shell running it (the pattern is in its own command line).
+- **Not verified:** any real SPICE session over the tunnel, anything on macOS, and whether
+  `virsh domstate` over ssh behaves on the real box (it was stubbed). SPICE image compression is `off` in the
+  domain XML (fine on wired gigabit); left unchanged because it is untested.
+- **Open options for the on-box grabber:** keep the guest at 1280x800 while recording (cheapest,
+  has direct evidence); try PPM via the QEMU monitor instead of PNG; a VNC-push client.
+
 ## v1 Limitations / v1.1 Roadmap
 
 This section documents known limitations and features still deferred after v1.1,

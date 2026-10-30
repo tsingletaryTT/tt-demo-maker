@@ -1,16 +1,43 @@
 //! Idle-trim an asciicast v2 recording (native replacement for compress_cast.py).
 use anyhow::Context;
+use std::sync::LazyLock;
 
-/// Drops the end-of-capture tail that tmux appends when the recorded program
-/// exits: a final `[exited]` line, and the screen clear (`ESC[2J`) tmux draws
-/// just before it. Left in, the last frame of a looped clip is a blank screen
-/// reading `[exited]`.
+/// Matches one terminal escape sequence: CSI (`ESC[...letter`), OSC (`ESC]...BEL`
+/// or `ESC]...ST`), and the short `ESC` + one/two-char forms (charset selection
+/// `ESC(B`, cursor save/restore, etc.).
+static ESCAPE_SEQ: LazyLock<regex::Regex> = LazyLock::new(|| {
+    regex::Regex::new(r"\x1b(\[[0-9;?]*[A-Za-z]|\][^\x07\x1b]*(\x07|\x1b\\)|[\(\)][0-9A-Za-z]|[>=cDEHM78])").unwrap()
+});
+
+/// True if `data` has no visible content once every escape sequence and bare
+/// control character (`\r`, `\n`) is removed — i.e. it is pure terminal
+/// housekeeping (mode resets, screen clears, alt-screen exit) with nothing a
+/// viewer would actually see.
+fn is_visually_empty(data: &str) -> bool {
+    ESCAPE_SEQ.replace_all(data, "").chars().all(|c| c == '\r' || c == '\n')
+}
+
+/// Drops the end-of-capture tail left by a recorded session ending: a final
+/// `[exited]` line (tmux's own marker), plus every purely-housekeeping line
+/// before it — mode resets, a screen clear (`ESC[2J`), exiting the alternate
+/// screen buffer (`ESC[?1049l`) — however many of them there are. Left in,
+/// the last frame of a looped clip (or the true end of a full-length render)
+/// is a blank screen, possibly reading `[exited]`.
+///
+/// A plain local process exiting leaves one housekeeping line before
+/// `[exited]` (a single `ESC[2J`). A session ended via a *remote* detach
+/// (`virsh console`, `ssh`, tmux attaching to another session) leaves more —
+/// typically a mode-reset+clear line, then a separate alt-screen-exit line —
+/// since the detaching client and the dying session each emit their own
+/// sequence. Popping by content (visually empty or not) rather than by a
+/// fixed count or a single fixed pattern handles both, and anything else
+/// shaped the same way.
 ///
 /// Only a trailing `[exited]` event is acted on. A cast that does not end in
-/// one is returned unchanged (byte for byte), the clear is dropped only when it
-/// directly precedes that line, and `[exited]` text elsewhere is kept. Event
-/// times are not touched. `record`, `render` and `compress` all go through
-/// this, so the cleanup does not depend on running `compress`.
+/// one is returned unchanged (byte for byte), and `[exited]` text elsewhere
+/// (not the cast's last event) is kept. Event times are not touched. `record`,
+/// `render` and `compress` all go through this, so the cleanup does not
+/// depend on running `compress`.
 pub fn strip_exit_tail_text(input: &str) -> anyhow::Result<String> {
     let mut lines: Vec<&str> = input.lines().filter(|l| !l.trim().is_empty()).collect();
     let data_of = |line: &str| -> Option<String> {
@@ -24,9 +51,7 @@ pub fn strip_exit_tail_text(input: &str) -> anyhow::Result<String> {
         return Ok(input.to_string());
     }
     lines.pop();
-    if lines.len() > 1
-        && lines.last().and_then(|l| data_of(l)).is_some_and(|d| d.contains("\u{1b}[2J"))
-    {
+    while lines.len() > 1 && lines.last().and_then(|l| data_of(l)).is_some_and(|d| is_visually_empty(&d)) {
         lines.pop();
     }
     Ok(lines.join("\n") + "\n")
@@ -196,6 +221,20 @@ mod tests {
         [0.1,\"o\",\"frame\"]\n\
         [0.2,\"o\",\"\\u001b[H\\u001b[2J\"]\n\
         [0.2,\"o\",\"[exited]\\r\\n\"]\n";
+
+    #[test]
+    fn drops_a_multi_line_remote_detach_tail() {
+        // Shape seen from a real `virsh console` / tmux-attach recording ending
+        // via Ctrl+]: three housekeeping lines before `[exited]`, not one.
+        let cast = "{\"version\":2,\"width\":80,\"height\":24}\n\
+            [0.1,\"o\",\"ttuser@tt-quietbox:~$ \"]\n\
+            [9.1,\"o\",\"\\r\\n\\u001b[K\"]\n\
+            [9.11,\"o\",\"\\u001b[1;50r\\u001b(B\\u001b[m\\u001b[?1l\\u001b>\\u001b[H\\u001b[2J\\u001b[?25h\"]\n\
+            [9.12,\"o\",\"\\u001b[?1049l\\u001b[23;0;0t\"]\n\
+            [9.13,\"o\",\"[exited]\\r\\n\"]\n";
+        let out = trim(cast, 0.5).unwrap();
+        assert_eq!(data_of(&out), vec!["ttuser@tt-quietbox:~$ "]);
+    }
 
     #[test]
     fn strip_text_leaves_a_clean_cast_byte_for_byte() {

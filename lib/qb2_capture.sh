@@ -8,9 +8,18 @@
 #   * gozer                           chip lease -- held by qb2-vm-up.sh's daemon, NOT by us
 #
 # Usage:
-#   qb2_capture.sh begin (--fresh | --as-is) [--pristine FILE] [--out DIR] [--no-viewer]
+#   qb2_capture.sh begin (--fresh | --as-is) [--pristine FILE] [--out DIR] [--no-viewer] [--no-capture]
 #   qb2_capture.sh status
 #   qb2_capture.sh end   [--mp4 FILE] [--down]
+#   qb2_capture.sh down                       # after `begin --no-capture`: power off + release the lease
+#
+# TWO WAYS TO RECORD
+#   * on this box (default): the frame grabber below -- starts at the first firmware frame, but
+#     ~3-7 fps and NO mouse pointer.
+#   * on ANOTHER machine (`begin --no-capture` + lib/qb2_view_remote.sh on e.g. a Mac): view the
+#     guest over an SSH-tunnelled SPICE connection and screen-record that window locally. Gets
+#     the pointer and up to 60 fps; costs the "from the very first frame" guarantee, and is
+#     only as good as the link between the machines.
 #
 # THE FLOW
 #   begin --fresh   1. restore the pristine qcow2 over the live disk   (DESTRUCTIVE: wipes it)
@@ -50,7 +59,7 @@ SUDO=(sudo --preserve-env=DISPLAY,WAYLAND_DISPLAY,XAUTHORITY,XDG_RUNTIME_DIR)
 domstate() { local o; o="$(virsh -c qemu:///system domstate "$VM_NAME" 2>/dev/null)" || { echo unknown; return; }; echo "${o%%$'\n'*}"; }
 
 cmd_begin() {
-  local mode="" pristine="" out="" viewer=1
+  local mode="" pristine="" out="" viewer=1 capture=1
   while [ $# -gt 0 ]; do
     case "$1" in
       --fresh)      mode=fresh; shift ;;
@@ -58,6 +67,10 @@ cmd_begin() {
       --pristine)   pristine="$2"; shift 2 ;;
       --out)        out="$2"; shift 2 ;;
       --no-viewer)  viewer=0; shift ;;
+      # VM only: no grabber, no take dir, no local viewer. For recording from ANOTHER machine
+      # (qb2_view_remote.sh on a Mac). Every screenshot the grabber takes is encoded on QEMU's
+      # main loop, which can hitch a live remote view, so don't run both.
+      --no-capture) capture=0; viewer=0; shift ;;
       *) die "begin: unknown option $1" ;;
     esac
   done
@@ -74,8 +87,10 @@ cmd_begin() {
   [ ! -f "$IMAGE_DIR/state/$VM_NAME.json" ] || die "lease-holding daemon state exists ($IMAGE_DIR/state/$VM_NAME.json); run qb2-vm-down.sh first"
   [ ! -L "$CURRENT" ] || die "a take is already in progress ($(readlink "$CURRENT")); run 'end' (or rm $CURRENT if it's stale)"
 
-  [ -n "$out" ] || out="$REPO/demo/assets/qb2-boot-$(date +%Y%m%d-%H%M%S)"
-  mkdir -p "$out"; out="$(cd "$out" && pwd)"
+  if [ "$capture" = 1 ]; then
+    [ -n "$out" ] || out="$REPO/demo/assets/qb2-boot-$(date +%Y%m%d-%H%M%S)"
+    mkdir -p "$out"; out="$(cd "$out" && pwd)"
+  fi
 
   local disk_note="as-left (NOT restored)"
   if [ "$mode" = fresh ]; then
@@ -85,15 +100,46 @@ cmd_begin() {
     disk_note="restored from ${pristine:-$VM_NAME-pristine.qcow2}"
   fi
 
-  # Grabber FIRST, so it is already waiting when the guest produces frame 0.
-  "$CAP" start "$out" "$VM_NAME"
-  ln -sfn "$out" "$CURRENT"
-  { echo "mode=$mode"; echo "disk=$disk_note"; echo "begun=$(date -Is)"; } > "$out/qb2.env"
+  if [ "$capture" = 1 ]; then
+    # Grabber FIRST, so it is already waiting when the guest produces frame 0.
+    "$CAP" start "$out" "$VM_NAME"
+    ln -sfn "$out" "$CURRENT"
+    { echo "mode=$mode"; echo "disk=$disk_note"; echo "begun=$(date -Is)"; } > "$out/qb2.env"
+  fi
 
   local vargs=(); [ "$viewer" = 1 ] && vargs=(--open-remote)
   log "starting guest via qb2-vm-up.sh (takes the gozer lease; queues if the chips are busy)"
   "${SUDO[@]}" "$IMG_MAKER/qb2-vm-up.sh" --name "$VM_NAME" --image-dir "$IMAGE_DIR" \
       --who "claude:tt-demo qb2 boot capture" --reason "recording QB2 boot demo" "${vargs[@]}"
+
+  if [ "$capture" = 0 ]; then
+    # VM-only mode. The SPICE display only exists once the domain is running (it may be
+    # queued behind another lease first), so wait for it and then print the EXACT port --
+    # it is auto-assigned and is not always 5900.
+    log "VM-only mode (no grabber). Waiting for the domain to start (up to 15 min if queued)..."
+    local i st url="" port=""
+    for i in $(seq 1 300); do
+      st="$(domstate)"
+      case "$st" in running|paused) url="$(virsh -c qemu:///system domdisplay "$VM_NAME" 2>/dev/null || true)"; [ -n "$url" ] && break ;; esac
+      sleep 3
+    done
+    [ -n "$url" ] || die "domain never reached 'running' with a display (state: $(domstate)); see $IMAGE_DIR/state/$VM_NAME.log"
+    port="${url##*:}"
+    cat <<EOF
+
+qb2_capture: VM UP, nothing is recording on this machine.  disk: $disk_note
+  SPICE display : $url   (listens on this box's loopback only)
+  From the machine you will record on (e.g. your Mac) -- get the helper there first
+  (either `git pull` tt-home and use tt-qb2-image-maker/qb2_view_remote.sh, or scp it):
+      scp <user>@$(hostname -I 2>/dev/null | awk '{print $1}'):$HERE/qb2_view_remote.sh .
+      ./qb2_view_remote.sh <user>@$(hostname -I 2>/dev/null | awk '{print $1}') $port
+  or by hand:
+      ssh -N -L 5900:127.0.0.1:$port <user>@$(hostname -I 2>/dev/null | awk '{print $1}')   # leave running
+      remote-viewer spice://localhost:5900
+  Record that window there (Cmd+Shift+5 / QuickTime / OBS). When finished:  $HERE/qb2_capture.sh down
+EOF
+    return 0
+  fi
 
   cat <<EOF
 
@@ -104,6 +150,13 @@ qb2_capture: RECORDING.  disk: $disk_note
   When you're done:  $HERE/qb2_capture.sh end [--down]
   (Note: the mouse pointer will not appear in this footage -- see qemu_capture.sh.)
 EOF
+}
+
+# Power off + unbind + release the lease, for a VM started with `begin --no-capture`
+# (there is no take for `end` to finish).
+cmd_down() {
+  [ ! -L "$CURRENT" ] || die "a take is in progress ($(readlink "$CURRENT")); use 'end --down' so it is built first"
+  sudo "$IMG_MAKER/qb2-vm-down.sh" --name "$VM_NAME" --image-dir "$IMAGE_DIR"
 }
 
 cmd_status() {
@@ -147,5 +200,6 @@ case "${1:-}" in
   begin)  shift; cmd_begin "$@" ;;
   status) shift; cmd_status "$@" ;;
   end)    shift; cmd_end "$@" ;;
-  *) die "usage: $(basename "$0") {begin (--fresh|--as-is)|status|end [--down]} ..." ;;
+  down)   shift; cmd_down "$@" ;;
+  *) die "usage: $(basename "$0") {begin (--fresh|--as-is) [--no-capture]|status|end [--down]|down} ..." ;;
 esac
