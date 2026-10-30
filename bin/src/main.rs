@@ -1,6 +1,7 @@
 mod compile;
 mod compress;
 mod doctor;
+mod look;
 mod manifest;
 mod orchestrate;
 mod post;
@@ -10,6 +11,7 @@ mod record;
 mod rehearse;
 mod render;
 mod scaffold;
+mod setup;
 mod verify;
 
 use clap::{Parser, Subcommand};
@@ -29,6 +31,15 @@ enum Cmd {
         /// (no obs/spectacle backend, or no Pillow to verify captures with).
         #[arg(long)]
         require_screen: bool,
+    },
+    /// Install the font and report the terminal/tmux pieces behind good-looking recordings.
+    Setup {
+        /// Show what would be installed without changing anything.
+        #[arg(long)]
+        dry_run: bool,
+        /// Skip the font download (offline machines, or a font you manage yourself).
+        #[arg(long)]
+        no_fonts: bool,
     },
     /// Idle-trim a raw asciicast.
     Compress {
@@ -115,6 +126,7 @@ fn main() -> anyhow::Result<()> {
 
     match Cli::parse().cmd {
         Cmd::Doctor { require_screen } => doctor::run(require_screen),
+        Cmd::Setup { dry_run, no_fonts } => setup::run(dry_run, no_fonts),
         Cmd::Compress { cast, max_idle, out, stdout } => {
             compress::run(&cast, max_idle, out.as_deref(), stdout)
         }

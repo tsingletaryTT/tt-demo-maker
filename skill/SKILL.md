@@ -8,7 +8,8 @@ description: Author demo recordings + a draft post from any project. Use when th
 You turn a natural-language demo request into `demo/demos.yaml`, then drive `tt-demo`.
 
 ## Steps
-1. `tt-demo doctor` — confirm tools; report anything missing.
+1. `tt-demo doctor` — confirm tools; report anything missing. If its `look` section lists
+   gaps, run `tt-demo setup` (installs the font, prints package commands) before recording.
 2. If `demo/demos.yaml` is absent, `tt-demo init`, then edit it to match the request.
    Author scenes per `manifest-schema.md`. Prefer declarative scenes; use `raw_tape`/`raw_script`
    only for tricky pixel-stable shots. For an actual GUI window, see the screen-capture

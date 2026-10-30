@@ -1,6 +1,8 @@
 Output {{ out_gif }}
 {% if want_mp4 %}Output {{ out_mp4 }}{% endif %}
 Source {{ theme_tape }}
+{# After Source on purpose: VHS keeps the last Set, so this beats any font in the theme tape. #}
+Set FontFamily "{{ font_family }}"
 Set Shell "bash"
 Set Width {{ width }}
 Set Height {{ height }}

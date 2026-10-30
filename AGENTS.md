@@ -450,6 +450,36 @@ itself; the resolution-dependent part is QEMU's PNG encode.
 - **Open options for the on-box grabber:** keep the guest at 1280x800 while recording (cheapest,
   has direct evidence); try PPM via the QEMU monitor instead of PNG; a VNC-push client.
 
+### Best-looking output by default, October 30 2026 (0.2.4 → 0.3.0)
+
+**Prompt:** "what can we do to make terminals in tmux look better? what tmux alternatives make
+fonts and ascii art like tt-toplike makes more attractive?" then "make these the default for
+this project ... include a doctor or setup command".
+
+**Finding that shaped the work:** tmux only holds the cell grid. The pixels come from the
+renderer (agg for GIF, xterm for MP4, VHS's browser terminal), so swapping tmux for zellij would
+change nothing. The levers were truecolor through tmux, the font, and the MP4 terminal.
+
+- `lib/tmux-record.conf` sets `terminal-features RGB`, `terminal-overrides Tc` and
+  `COLORTERM=truecolor`. `lib/tests/look_test.sh` records a color off the 256 cube and fails
+  without it (watched it fail first, with `TERM=xterm` and no `COLORTERM` so a truecolor dev
+  shell cannot mask it).
+- `lib/look.sh` is the one place that picks the font and MP4 terminal. `render.sh` (GIF + MP4),
+  the VHS tape (`templates/tape.j2`, `Set FontFamily` after `Source` because VHS keeps the last
+  `Set`) and `doctor`/`setup` (via `bin/src/look.rs`) all ask it. Theme tapes no longer hardcode
+  a font.
+- MP4 uses alacritty when installed, xterm otherwise, with the theme's palette. alacritty under
+  Xvfb needs `WAYLAND_DISPLAY` unset, `WINIT_UNIX_BACKEND=x11` and `LIBGL_ALWAYS_SOFTWARE=1`;
+  with a Wayland session visible it opens on the real desktop and `xwininfo` never finds it.
+- `tt-demo setup [--dry-run] [--no-fonts]` installs JetBrainsMono Nerd Font from a pinned
+  Nerd Fonts release (pinned SHA-256, user font dir, no sudo) and only prints the package command
+  for alacritty/ncurses-term. `doctor` gained an advisory `look` section.
+- `render_mp4_test.sh` now runs once per installed terminal and checks the video's background
+  pixel against a theme color no default uses. It also compares PID sets instead of global
+  process counts: another session's Xvfb on `:99` made the count flaky.
+- **Not exercised:** the checksum-mismatch branch of `setup` (no fixture serves a bad archive),
+  and the VHS path end to end (the tape's font line is unit-tested, vhs itself was not run).
+
 ## v1 Limitations / v1.1 Roadmap
 
 This section documents known limitations and features still deferred after v1.1,

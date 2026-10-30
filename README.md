@@ -84,12 +84,34 @@ description ──▶ /tt-demo skill (LLM: Claude or local Qwen)
 
 Full design: [`docs/superpowers/specs/2026-07-18-tt-demo-maker-design.md`](docs/superpowers/specs/2026-07-18-tt-demo-maker-design.md).
 
+## How recordings look
+
+Every recording uses the same defaults, with nothing to configure:
+
+- **Truecolor.** `lib/tmux-record.conf` turns on 24-bit color for the recording tmux and sets
+  `COLORTERM=truecolor`. Without it tmux reduces gradients to the 256-color palette.
+- **One font everywhere.** `lib/look.sh` picks the first installed family from Berkeley Mono,
+  JetBrainsMono Nerd Font, JetBrains Mono, Iosevka Term, Hack, DejaVu Sans Mono. The GIF (agg),
+  MP4 and VHS renders all use it. Pin one with `TT_DEMO_FONT=<family>` or
+  `defaults.render.font_family` in the manifest.
+- **alacritty for MP4**, with the theme's palette (the same `themes/<theme>.agg` string the GIF
+  uses). It falls back to xterm when alacritty is absent; `TT_DEMO_TERMINAL=xterm|alacritty`
+  forces one.
+
+`tt-demo setup` installs the font (JetBrainsMono Nerd Font v3.4.0, SHA-256 checked, into
+`~/.local/share/fonts/tt-demo`, no root) and prints the package command for anything it can't
+install itself, such as `alacritty`. `tt-demo doctor` reports the same items in its `look`
+section. They are advisory: a machine with only stock fonts still records.
+
 ## Requirements
 
 - **Rust toolchain** (to build the `tt-demo` binary; edition 2021)
 - **Capture tools**, checked by `tt-demo doctor`: `tmux`, `asciinema`, `vhs`, `agg`,
   `ffmpeg`, and — only for MP4 rendering — `Xvfb` + `xterm`. You only need the tools for
   the engines and outputs your scenes actually use.
+- **For the best-looking output** (advisory; `tt-demo setup` handles it): a code font
+  with full glyph coverage (JetBrainsMono Nerd Font, installed for you), `alacritty` for
+  MP4 (xterm is the fallback), and tmux 3.2+ with the `tmux-256color` terminfo.
 - **Screen capture only** (the GUI path below): `obs` for video *or* `spectacle` for
   stills, plus `python3` with Pillow for the blank-frame check, and `ffmpeg`/`ffprobe`.
   `systemd-inhibit` and `loginctl` are used when present. `tt-demo doctor` reports these
@@ -125,7 +147,8 @@ available in any project). If you invoke `tt-demo` from outside this repo, set
 From the root of any project you want to demo:
 
 ```bash
-tt-demo doctor                 # check for tmux, asciinema, vhs, agg, ffmpeg, Xvfb, xterm
+tt-demo setup                  # install the font; say what else is missing (--dry-run to preview)
+tt-demo doctor                 # check for tmux, asciinema, vhs, agg, ffmpeg, Xvfb, xterm + the look
 tt-demo init                   # scaffold demo/demos.yaml, demo/assets/, demo/.gitignore
 $EDITOR demo/demos.yaml        # describe your scenes — see skill/manifest-schema.md
 tt-demo record --dry-run       # validate + print the capture plan; touches no hardware

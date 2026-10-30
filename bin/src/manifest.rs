@@ -45,6 +45,9 @@ pub struct RenderOpts {
     pub font_size: Option<u16>,
     /// agg --speed: playback speed multiplier.
     pub speed: Option<f32>,
+    /// Font family for GIF, MP4 and VHS output. Omit to use the best installed font
+    /// (see lib/look.sh); set it to pin one for a project.
+    pub font_family: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

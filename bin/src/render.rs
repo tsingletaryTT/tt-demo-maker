@@ -42,6 +42,8 @@ pub fn agg_env(m: &Manifest, home: &Path) -> Vec<(String, String)> {
         if let Some(f) = r.fps_cap { env.push(("AGG_FPS_CAP".to_string(), f.to_string())); }
         if let Some(f) = r.font_size { env.push(("AGG_FONT_SIZE".to_string(), f.to_string())); }
         if let Some(s) = r.speed { env.push(("AGG_SPEED".to_string(), s.to_string())); }
+        // render.sh reads TT_DEMO_FONT through look.sh, so one override covers GIF and MP4.
+        if let Some(f) = &r.font_family { env.push(("TT_DEMO_FONT".to_string(), f.clone())); }
     }
     env
 }
@@ -143,6 +145,12 @@ mod tests {
         assert!(env.contains(&("AGG_FPS_CAP".into(), "10".into())));
         assert!(env.contains(&("AGG_FONT_SIZE".into(), "12".into())));
         assert!(env.contains(&("AGG_SPEED".into(), "1.25".into())));
+        // No font_family in the manifest -> nothing set, so look.sh detects the best font.
+        assert!(!env.iter().any(|(k, _)| k == "TT_DEMO_FONT"));
+
+        let yf = "project: d\ntheme: tb\ndefaults: { render: { font_family: \"Iosevka Term\" } }\nscenes:\n  - id: x\n    right: { run: r }\n";
+        let envf = agg_env(&crate::manifest::Manifest::from_str(yf).unwrap(), &home);
+        assert!(envf.contains(&("TT_DEMO_FONT".into(), "Iosevka Term".into())));
 
         // Unknown theme file -> no AGG_THEME pair, no error.
         let y2 = "project: d\ntheme: ghost\nscenes:\n  - id: x\n    right: { run: r }\n";

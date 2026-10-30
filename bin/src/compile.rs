@@ -31,13 +31,16 @@ pub fn compile_scene(scene: &Scene, m: &Manifest, templates_dir: &Path) -> anyho
     match engine {
         Engine::Vhs => {
             let tmpl = std::fs::read_to_string(templates_dir.join("tape.j2"))?;
+            // Same font the GIF/MP4 renderers resolve, so VHS output matches them.
+            let font_override = m.defaults.render.as_ref().and_then(|r| r.font_family.as_deref());
+            let font_family = crate::look::font(&crate::record::home(), font_override);
             env.add_template("t", &tmpl)?;
             let text = env.get_template("t")?.render(minijinja::context! {
                 out_gif => format!("demo/assets/{}.gif", scene.id),
                 out_mp4 => format!("demo/assets/{}.mp4", scene.id),
                 want_mp4 => scene.outputs.as_ref().is_some_and(|o| o.iter().any(|x| x == "mp4")),
                 theme_tape => format!("themes/{}.tape", m.theme),
-                width, height,
+                width, height, font_family,
                 typing_speed => m.defaults.typing_speed.clone().unwrap_or_else(|| "60ms".into()),
                 playback_speed => m.defaults.playback_speed.unwrap_or(1.0),
                 right_run, duration_s,
@@ -81,6 +84,9 @@ mod tests {
         assert_eq!(c.kind, "tape");
         assert!(c.text.contains("tt-toplike --host"), "backend token must interpolate");
         assert!(c.text.contains("Source"), "must source a theme tape");
+        // The font line must come after `Source`, or the theme tape's own font wins.
+        let (src, font) = (c.text.find("Source").unwrap(), c.text.find("Set FontFamily").expect("tape sets a font"));
+        assert!(font > src, "Set FontFamily must follow Source");
     }
 
     #[test]

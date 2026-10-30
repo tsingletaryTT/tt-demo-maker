@@ -83,6 +83,33 @@ pub fn run(require_screen: bool) -> anyhow::Result<()> {
         println!("  (not required — pass --require-screen to make these fail)");
     }
 
+    // How recordings render. Advisory, like screen capture: a box with only stock fonts
+    // still records, it just looks worse, so this never fails doctor. `tt-demo setup`
+    // fixes what it can.
+    let home = crate::record::home();
+    println!("\nlook (how recordings render — advisory, `tt-demo setup` fixes it)");
+    let font = crate::look::font(&home, None);
+    let font_good = crate::look::font_is_good(&home);
+    let terminal = crate::look::terminal(&home);
+    let tmux = crate::look::tmux_version();
+    let terminfo = crate::look::has_tmux_terminfo();
+    let mark = |ok: bool| if ok { "ok " } else { "-- " };
+    println!("  [{}] font      {font}", mark(font_good));
+    println!("  [{}] terminal  {terminal} (MP4)", mark(terminal == "alacritty"));
+    println!(
+        "  [{}] tmux      {}",
+        mark(tmux.is_some_and(|v| v >= (3, 2)) && terminfo),
+        tmux.map(|(a, b)| format!("{a}.{b}, truecolor on via lib/tmux-record.conf")).unwrap_or_else(|| "not found".into())
+    );
+    let gaps = crate::look::look_gaps(font_good, &terminal, tmux, terminfo);
+    if gaps.is_empty() {
+        println!("  recordings will use full color and the best installed font");
+    } else {
+        for gap in &gaps {
+            println!("  note: {gap}");
+        }
+    }
+
     if missing.is_empty() {
         println!("\nall required dependencies present");
         Ok(())
